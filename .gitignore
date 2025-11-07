@@ -4,11 +4,9 @@ client/node_modules/
 
 # Environment variables
 .env
+client/.env
 
-# Uploads
-uploads/
-
-# Build files
+# Build outputs
 client/build/
 dist/
 
@@ -20,10 +18,12 @@ npm-debug.log*
 pids
 *.pid
 *.seed
-*.pid.lock
 
 # Coverage directory used by tools like istanbul
 coverage/
+
+# Uploads
+uploads/
 
 # OS generated files
 .DS_Store
@@ -33,3 +33,11 @@ coverage/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+*.temp

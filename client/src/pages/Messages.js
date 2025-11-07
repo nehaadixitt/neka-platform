@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { MessageCircle, Send, Users, Search, User, Plus, X } from 'lucide-react';
 import axios from '../utils/auth';
 
 const Messages = ({ user }) => {
@@ -7,8 +9,8 @@ const Messages = ({ user }) => {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [users, setUsers] = useState([]);
-  const [showNewChat, setShowNewChat] = useState(false);
-  const [selectedUser, setSelectedUser] = useState('');
+  const [showUserList, setShowUserList] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     fetchConversations();
@@ -59,225 +61,258 @@ const Messages = ({ user }) => {
     }
   };
 
-  const startNewChat = async (e) => {
-    e.preventDefault();
-    if (!selectedUser || !newMessage.trim()) return;
-
+  const startChatWithUser = async (selectedUser) => {
     try {
-      await axios.post('/api/messages', {
-        receiverId: selectedUser,
-        content: newMessage
-      });
-      setNewMessage('');
-      setSelectedUser('');
-      setShowNewChat(false);
-      fetchConversations();
+      // Check if conversation already exists
+      const existingConv = conversations.find(conv => conv.partnerId === selectedUser._id);
+      if (existingConv) {
+        setSelectedConversation(existingConv);
+        fetchMessages(selectedUser._id);
+        setShowUserList(false);
+        return;
+      }
+
+      // Create new conversation by setting up the conversation object
+      const newConv = {
+        partnerId: selectedUser._id,
+        partnerName: selectedUser.name,
+        messages: []
+      };
+      setSelectedConversation(newConv);
+      setMessages([]);
+      setShowUserList(false);
     } catch (err) {
       console.error(err);
     }
   };
 
-  const containerStyle = {
-    display: 'flex',
-    height: '600px',
-    backgroundColor: 'white',
-    borderRadius: '8px',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-    overflow: 'hidden'
-  };
-
-  const sidebarStyle = {
-    width: '300px',
-    borderRight: '1px solid #eee',
-    display: 'flex',
-    flexDirection: 'column'
-  };
-
-  const chatStyle = {
-    flex: 1,
-    display: 'flex',
-    flexDirection: 'column'
-  };
-
-  const messagesStyle = {
-    flex: 1,
-    padding: '1rem',
-    overflowY: 'auto',
-    backgroundColor: '#f8f9fa'
-  };
-
-  const inputStyle = {
-    width: '100%',
-    padding: '0.75rem',
-    border: '1px solid #ddd',
-    borderRadius: '4px'
-  };
+  const filteredUsers = users.filter(u => 
+    u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    u.artistType.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
-    <div style={{maxWidth: '1000px', margin: '0 auto'}}>
-      <h2 style={{marginBottom: '1rem', color: '#2c3e50'}}>Messages</h2>
-      
-      <div style={containerStyle}>
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="max-w-6xl mx-auto h-[80vh]"
+    >
+      <div className="flex h-full bg-black/20 backdrop-blur-lg rounded-xl border border-white/10 overflow-hidden">
+        
         {/* Sidebar */}
-        <div style={sidebarStyle}>
-          <div style={{padding: '1rem', borderBottom: '1px solid #eee'}}>
-            <button 
-              onClick={() => setShowNewChat(!showNewChat)}
-              style={{
-                width: '100%',
-                padding: '0.5rem',
-                backgroundColor: '#3498db',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer'
-              }}
-            >
-              New Chat
-            </button>
-          </div>
+        <div className="w-80 border-r border-white/10 flex flex-col">
+          {/* Header */}
+          <div className="p-4 border-b border-white/10">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-white flex items-center space-x-2">
+                <MessageCircle size={24} />
+                <span>Messages</span>
+              </h2>
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setShowUserList(!showUserList)}
+                className="p-2 rounded-lg bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 transition-colors"
+              >
+                {showUserList ? <X size={20} /> : <Plus size={20} />}
+              </motion.button>
+            </div>
 
-          {showNewChat && (
-            <div style={{padding: '1rem', borderBottom: '1px solid #eee'}}>
-              <form onSubmit={startNewChat}>
-                <select
-                  value={selectedUser}
-                  onChange={(e) => setSelectedUser(e.target.value)}
-                  style={{...inputStyle, marginBottom: '0.5rem'}}
-                  required
-                >
-                  <option value="">Select User</option>
-                  {users.map(u => (
-                    <option key={u._id} value={u._id}>
-                      {u.name} ({u.artistType})
-                    </option>
-                  ))}
-                </select>
+            {/* Search */}
+            {showUserList && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="relative"
+              >
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/40" size={16} />
                 <input
                   type="text"
-                  placeholder="Type your message..."
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  style={{...inputStyle, marginBottom: '0.5rem'}}
-                  required
+                  placeholder="Search users..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full bg-white/10 border border-white/20 rounded-lg pl-10 pr-4 py-2 text-white placeholder-white/50 focus:border-purple-400 focus:outline-none"
                 />
-                <button type="submit" style={{
-                  width: '100%',
-                  padding: '0.5rem',
-                  backgroundColor: '#27ae60',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer'
-                }}>
-                  Send
-                </button>
-              </form>
-            </div>
-          )}
-
-          <div style={{flex: 1, overflowY: 'auto'}}>
-            {conversations.length === 0 ? (
-              <p style={{padding: '1rem', color: '#666'}}>No conversations yet</p>
-            ) : (
-              conversations.map(conv => (
-                <div
-                  key={conv.partnerId}
-                  onClick={() => {
-                    setSelectedConversation(conv);
-                    fetchMessages(conv.partnerId);
-                  }}
-                  style={{
-                    padding: '1rem',
-                    borderBottom: '1px solid #eee',
-                    cursor: 'pointer',
-                    backgroundColor: selectedConversation?.partnerId === conv.partnerId ? '#ecf0f1' : 'white'
-                  }}
-                >
-                  <h4 style={{marginBottom: '0.25rem'}}>{conv.partnerName}</h4>
-                  <p style={{fontSize: '0.9rem', color: '#666'}}>
-                    {conv.lastMessage.content.substring(0, 50)}...
-                  </p>
-                </div>
-              ))
+              </motion.div>
             )}
+          </div>
+
+          {/* User List or Conversations */}
+          <div className="flex-1 overflow-y-auto">
+            <AnimatePresence mode="wait">
+              {showUserList ? (
+                <motion.div
+                  key="users"
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="p-2"
+                >
+                  <h3 className="text-white/80 text-sm font-medium mb-3 px-2 flex items-center space-x-2">
+                    <Users size={16} />
+                    <span>All Users ({filteredUsers.length})</span>
+                  </h3>
+                  {filteredUsers.map(u => (
+                    <motion.div
+                      key={u._id}
+                      whileHover={{ scale: 1.02 }}
+                      onClick={() => startChatWithUser(u)}
+                      className="flex items-center space-x-3 p-3 rounded-lg hover:bg-white/10 cursor-pointer transition-colors mb-2"
+                    >
+                      <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-blue-500 rounded-full flex items-center justify-center">
+                        <User size={16} className="text-white" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white font-medium truncate">{u.name}</p>
+                        <p className="text-purple-300 text-sm">{u.artistType}</p>
+                      </div>
+                    </motion.div>
+                  ))}
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="conversations"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 20 }}
+                  className="p-2"
+                >
+                  <h3 className="text-white/80 text-sm font-medium mb-3 px-2">
+                    Conversations ({conversations.length})
+                  </h3>
+                  {conversations.length === 0 ? (
+                    <div className="text-center py-8">
+                      <MessageCircle className="mx-auto mb-3 text-white/40" size={32} />
+                      <p className="text-white/60">No conversations yet</p>
+                      <p className="text-white/40 text-sm">Start chatting with other artists!</p>
+                    </div>
+                  ) : (
+                    conversations.map(conv => (
+                      <motion.div
+                        key={conv.partnerId}
+                        whileHover={{ scale: 1.02 }}
+                        onClick={() => {
+                          setSelectedConversation(conv);
+                          fetchMessages(conv.partnerId);
+                        }}
+                        className={`flex items-center space-x-3 p-3 rounded-lg cursor-pointer transition-colors mb-2 ${
+                          selectedConversation?.partnerId === conv.partnerId 
+                            ? 'bg-purple-500/20 border border-purple-400/50' 
+                            : 'hover:bg-white/10'
+                        }`}
+                      >
+                        <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-blue-500 rounded-full flex items-center justify-center">
+                          <User size={16} className="text-white" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-white font-medium truncate">{conv.partnerName}</p>
+                          <p className="text-white/60 text-sm truncate">
+                            {conv.lastMessage?.content || 'Start a conversation'}
+                          </p>
+                        </div>
+                      </motion.div>
+                    ))
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
 
         {/* Chat Area */}
-        <div style={chatStyle}>
+        <div className="flex-1 flex flex-col">
           {selectedConversation ? (
             <>
-              <div style={{padding: '1rem', borderBottom: '1px solid #eee', backgroundColor: '#f8f9fa'}}>
-                <h3>{selectedConversation.partnerName}</h3>
-              </div>
-              
-              <div style={messagesStyle}>
-                {messages.map(message => (
-                  <div
-                    key={message._id}
-                    style={{
-                      marginBottom: '1rem',
-                      display: 'flex',
-                      justifyContent: message.senderId._id === user.id ? 'flex-end' : 'flex-start'
-                    }}
-                  >
-                    <div
-                      style={{
-                        maxWidth: '70%',
-                        padding: '0.75rem',
-                        borderRadius: '12px',
-                        backgroundColor: message.senderId._id === user.id ? '#3498db' : 'white',
-                        color: message.senderId._id === user.id ? 'white' : 'black',
-                        boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
-                      }}
-                    >
-                      <p>{message.content}</p>
-                      <small style={{opacity: 0.7}}>
-                        {new Date(message.createdAt).toLocaleTimeString()}
-                      </small>
-                    </div>
+              {/* Chat Header */}
+              <div className="p-4 border-b border-white/10 bg-white/5">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-blue-500 rounded-full flex items-center justify-center">
+                    <User size={16} className="text-white" />
                   </div>
-                ))}
+                  <div>
+                    <h3 className="text-white font-semibold">{selectedConversation.partnerName}</h3>
+                    <p className="text-white/60 text-sm">Online</p>
+                  </div>
+                </div>
               </div>
 
-              <form onSubmit={sendMessage} style={{padding: '1rem', borderTop: '1px solid #eee'}}>
-                <div style={{display: 'flex', gap: '0.5rem'}}>
+              {/* Messages */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                <AnimatePresence>
+                  {messages.map((message, index) => (
+                    <motion.div
+                      key={message._id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.1 }}
+                      className={`flex ${message.senderId._id === user.id ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div
+                        className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl ${
+                          message.senderId._id === user.id
+                            ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white'
+                            : 'bg-white/10 text-white border border-white/20'
+                        }`}
+                      >
+                        <p className="text-sm">{message.content}</p>
+                        <p className={`text-xs mt-1 ${
+                          message.senderId._id === user.id ? 'text-white/70' : 'text-white/50'
+                        }`}>
+                          {new Date(message.createdAt).toLocaleTimeString([], { 
+                            hour: '2-digit', 
+                            minute: '2-digit' 
+                          })}
+                        </p>
+                      </div>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </div>
+
+              {/* Message Input */}
+              <form onSubmit={sendMessage} className="p-4 border-t border-white/10">
+                <div className="flex space-x-3">
                   <input
                     type="text"
                     placeholder="Type your message..."
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
-                    style={{...inputStyle, flex: 1}}
+                    className="flex-1 bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white placeholder-white/50 focus:border-purple-400 focus:outline-none"
                     required
                   />
-                  <button type="submit" style={{
-                    padding: '0.75rem 1.5rem',
-                    backgroundColor: '#3498db',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer'
-                  }}>
-                    Send
-                  </button>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    type="submit"
+                    className="btn-primary flex items-center space-x-2"
+                  >
+                    <Send size={16} />
+                    <span className="hidden sm:inline">Send</span>
+                  </motion.button>
                 </div>
               </form>
             </>
           ) : (
-            <div style={{
-              flex: 1,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#666'
-            }}>
-              Select a conversation to start messaging
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center">
+                <MessageCircle className="mx-auto mb-4 text-white/40" size={64} />
+                <h3 className="text-xl font-semibold text-white mb-2">Welcome to Messages</h3>
+                <p className="text-white/60 mb-4">Select a conversation or start a new chat</p>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  onClick={() => setShowUserList(true)}
+                  className="btn-primary flex items-center space-x-2 mx-auto"
+                >
+                  <Users size={16} />
+                  <span>Browse Users</span>
+                </motion.button>
+              </div>
             </div>
           )}
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 };
 

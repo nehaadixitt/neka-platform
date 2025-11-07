@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Plus, FolderOpen, FileText, Calendar, Users, X, Upload, ArrowRight, Crown, UserCheck } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import axios from '../utils/auth';
 
 const Projects = ({ user }) => {
+  const navigate = useNavigate();
   const [projects, setProjects] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
@@ -13,6 +17,17 @@ const Projects = ({ user }) => {
 
   useEffect(() => {
     fetchProjects();
+    
+    // Listen for project updates from collaboration acceptance
+    const handleProjectsUpdate = () => {
+      fetchProjects();
+    };
+    
+    window.addEventListener('projectsUpdated', handleProjectsUpdate);
+    
+    return () => {
+      window.removeEventListener('projectsUpdated', handleProjectsUpdate);
+    };
   }, []);
 
   const fetchProjects = async () => {
@@ -20,7 +35,7 @@ const Projects = ({ user }) => {
       const res = await axios.get('/api/projects/my');
       setProjects(res.data);
     } catch (err) {
-      console.error(err);
+      console.error('Error fetching projects:', err);
     }
   };
 
@@ -55,127 +70,280 @@ const Projects = ({ user }) => {
     }
   };
 
-  const sendCollabRequest = async (projectId, receiverId) => {
-    try {
-      await axios.post('/api/collaborations/request', { projectId, receiverId });
-      alert('Collaboration request sent!');
-    } catch (err) {
-      alert(err.response?.data?.msg || 'Error sending request');
-    }
-  };
+  const ongoingProjects = projects.filter(p => p.status === 'ongoing');
+  const finishedProjects = projects.filter(p => p.status === 'finished');
 
-  const cardStyle = {
-    backgroundColor: 'white',
-    padding: '1.5rem',
-    marginBottom: '1rem',
-    borderRadius: '8px',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-  };
+  const ProjectCard = ({ project, index }) => (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.1 }}
+      whileHover={{ y: -5, scale: 1.02 }}
+      className="card group cursor-pointer"
+      onClick={() => navigate(`/project/${project._id}`)}
+    >
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex items-center space-x-3">
+          <div className={`p-2 rounded-lg ${
+            project.status === 'finished' 
+              ? 'bg-green-500/20 text-green-400' 
+              : 'bg-yellow-500/20 text-yellow-400'
+          }`}>
+            <FolderOpen size={20} />
+          </div>
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <h3 className="text-xl font-semibold text-white group-hover:text-purple-400 transition-colors">
+                {project.title}
+              </h3>
+              {project.isOwner ? (
+                <Crown className="text-yellow-400" size={16} title="Owner" />
+              ) : project.isCollaborative ? (
+                <UserCheck className="text-blue-400" size={16} title="Collaborator" />
+              ) : null}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
+                project.status === 'finished'
+                  ? 'bg-green-500/20 text-green-300'
+                  : 'bg-yellow-500/20 text-yellow-300'
+              }`}>
+                {project.status}
+              </span>
+              {project.isCollaborative && (
+                <span className="inline-block px-3 py-1 rounded-full text-xs font-medium bg-purple-500/20 text-purple-300">
+                  Collaborative
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+        
+        <div className="flex items-center space-x-2 text-white/60">
+          <Calendar size={16} />
+          <span className="text-sm">
+            {new Date(project.createdAt).toLocaleDateString()}
+          </span>
+        </div>
+      </div>
 
-  const inputStyle = {
-    width: '100%',
-    padding: '0.5rem',
-    margin: '0.25rem 0',
-    border: '1px solid #ddd',
-    borderRadius: '4px'
-  };
+      <p className="text-white/70 mb-4 line-clamp-3">{project.summary}</p>
+      
+      {!project.isOwner && project.userId && (
+        <div className="flex items-center space-x-2 text-blue-300 mb-3">
+          <Crown size={14} />
+          <span className="text-sm">Owner: {project.userId.name}</span>
+        </div>
+      )}
 
-  const buttonStyle = {
-    padding: '0.5rem 1rem',
-    margin: '0.5rem 0.5rem 0.5rem 0',
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer'
-  };
+      {project.scriptPath && (
+        <div className="flex items-center space-x-2 text-purple-300 mb-4">
+          <FileText size={16} />
+          <span className="text-sm">Script attached</span>
+        </div>
+      )}
+
+      <div className="flex justify-between items-center mt-4">
+        {project.collaborators && project.collaborators.length > 0 && (
+          <div className="flex items-center space-x-2 text-blue-300">
+            <Users size={16} />
+            <span className="text-sm">{project.collaborators.length} collaborators</span>
+          </div>
+        )}
+        <ArrowRight className="text-white/40 group-hover:text-purple-400 transition-colors" size={20} />
+      </div>
+    </motion.div>
+  );
 
   return (
-    <div style={{maxWidth: '800px', margin: '0 auto'}}>
-      <div style={cardStyle}>
-        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem'}}>
-          <h2 style={{color: '#2c3e50'}}>My Projects</h2>
-          <button 
-            onClick={() => setShowForm(!showForm)} 
-            style={{...buttonStyle, backgroundColor: '#27ae60', color: 'white'}}
-          >
-            + New Project
-          </button>
-        </div>
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="max-w-6xl mx-auto"
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between mb-8">
+        <motion.h1 
+          initial={{ x: -20 }}
+          animate={{ x: 0 }}
+          className="text-4xl font-bold cinema-header"
+        >
+          🎬 My Projects
+        </motion.h1>
+        
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => setShowForm(!showForm)}
+          className="btn-primary flex items-center space-x-2"
+        >
+          <Plus size={20} />
+          <span>New Project</span>
+        </motion.button>
+      </div>
 
+      {/* Create Project Form */}
+      <AnimatePresence>
         {showForm && (
-          <form onSubmit={handleSubmit} style={{marginBottom: '2rem', padding: '1rem', border: '1px solid #eee', borderRadius: '4px'}}>
-            <input
-              type="text"
-              name="title"
-              placeholder="Project Title"
-              value={formData.title}
-              onChange={handleChange}
-              style={inputStyle}
-              required
-            />
-            <select
-              name="status"
-              value={formData.status}
-              onChange={handleChange}
-              style={inputStyle}
-            >
-              <option value="ongoing">Ongoing</option>
-              <option value="finished">Finished</option>
-            </select>
-            <textarea
-              name="summary"
-              placeholder="Project Summary"
-              value={formData.summary}
-              onChange={handleChange}
-              style={{...inputStyle, height: '80px'}}
-              required
-            />
-            <input
-              type="file"
-              accept=".pdf,.doc,.docx,.txt"
-              onChange={handleFileChange}
-              style={inputStyle}
-            />
-            <button type="submit" style={{...buttonStyle, backgroundColor: '#3498db', color: 'white'}}>
-              Create Project
-            </button>
-            <button type="button" onClick={() => setShowForm(false)} style={{...buttonStyle, backgroundColor: '#95a5a6', color: 'white'}}>
-              Cancel
-            </button>
-          </form>
-        )}
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="card mb-8"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-semibold text-white">Create New Project</h3>
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                onClick={() => setShowForm(false)}
+                className="p-2 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-colors"
+              >
+                <X size={20} />
+              </motion.button>
+            </div>
 
-        {projects.length === 0 ? (
-          <p style={{textAlign: 'center', color: '#666'}}>No projects yet. Create your first project!</p>
-        ) : (
-          projects.map(project => (
-            <div key={project._id} style={{padding: '1rem', border: '1px solid #eee', marginBottom: '1rem', borderRadius: '4px'}}>
-              <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start'}}>
-                <div style={{flex: 1}}>
-                  <h3 style={{marginBottom: '0.5rem'}}>{project.title}</h3>
-                  <p style={{color: '#666', marginBottom: '0.5rem'}}>
-                    Status: <span style={{
-                      padding: '0.25rem 0.5rem',
-                      borderRadius: '12px',
-                      fontSize: '0.8rem',
-                      backgroundColor: project.status === 'finished' ? '#27ae60' : '#f39c12',
-                      color: 'white'
-                    }}>
-                      {project.status}
-                    </span>
-                  </p>
-                  <p style={{marginBottom: '0.5rem'}}>{project.summary}</p>
-                  {project.scriptPath && (
-                    <p style={{fontSize: '0.9rem', color: '#666'}}>
-                      Script: {project.scriptPath}
-                    </p>
-                  )}
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-white/80 mb-2">Project Title</label>
+                <input
+                  type="text"
+                  name="title"
+                  placeholder="Enter project title..."
+                  value={formData.title}
+                  onChange={handleChange}
+                  className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white placeholder-white/50 focus:border-purple-400 focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-white/80 mb-2">Status</label>
+                <select
+                  name="status"
+                  value={formData.status}
+                  onChange={handleChange}
+                  className="input dropdown-text"
+                  style={{color: 'black'}}
+                >
+                  <option value="ongoing">Ongoing</option>
+                  <option value="finished">Finished</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-white/80 mb-2">Project Summary</label>
+                <textarea
+                  name="summary"
+                  placeholder="Describe your project..."
+                  value={formData.summary}
+                  onChange={handleChange}
+                  rows="4"
+                  className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white placeholder-white/50 focus:border-purple-400 focus:outline-none resize-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-white/80 mb-2">Script Upload (Optional)</label>
+                <div className="relative">
+                  <input
+                    type="file"
+                    accept=".pdf,.doc,.docx,.txt"
+                    onChange={handleFileChange}
+                    className="hidden"
+                    id="script-upload"
+                  />
+                  <label
+                    htmlFor="script-upload"
+                    className="flex items-center justify-center w-full bg-white/10 border border-white/20 border-dashed rounded-lg px-4 py-8 text-white/60 hover:text-white hover:border-purple-400 cursor-pointer transition-colors"
+                  >
+                    <div className="text-center">
+                      <Upload className="mx-auto mb-2" size={24} />
+                      <p>{scriptFile ? scriptFile.name : 'Click to upload script'}</p>
+                      <p className="text-sm text-white/40">PDF, DOC, DOCX, TXT</p>
+                    </div>
+                  </label>
                 </div>
               </div>
-            </div>
-          ))
+
+              <div className="flex space-x-4">
+                <button type="submit" className="btn-primary">
+                  Create Project
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => setShowForm(false)}
+                  className="btn-secondary"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </motion.div>
         )}
-      </div>
-    </div>
+      </AnimatePresence>
+
+      {/* Projects Grid */}
+      {projects.length === 0 ? (
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="card text-center py-12"
+        >
+          <FolderOpen className="mx-auto mb-4 text-white/40" size={64} />
+          <h3 className="text-xl font-semibold text-white mb-2">No Projects Yet</h3>
+          <p className="text-white/60 mb-6">Create your first project to get started!</p>
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            onClick={() => setShowForm(true)}
+            className="btn-primary flex items-center space-x-2 mx-auto"
+          >
+            <Plus size={20} />
+            <span>Create Project</span>
+          </motion.button>
+        </motion.div>
+      ) : (
+        <div className="space-y-8">
+          {/* Ongoing Projects */}
+          {ongoingProjects.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              <h2 className="text-2xl font-semibold text-white mb-6 flex items-center space-x-2">
+                <div className="w-3 h-3 bg-yellow-400 rounded-full"></div>
+                <span>Ongoing Projects ({ongoingProjects.length})</span>
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {ongoingProjects.map((project, index) => (
+                  <ProjectCard key={project._id} project={project} index={index} />
+                ))}
+              </div>
+            </motion.div>
+          )}
+
+          {/* Finished Projects */}
+          {finishedProjects.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+            >
+              <h2 className="text-2xl font-semibold text-white mb-6 flex items-center space-x-2">
+                <div className="w-3 h-3 bg-green-400 rounded-full"></div>
+                <span>Completed Projects ({finishedProjects.length})</span>
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {finishedProjects.map((project, index) => (
+                  <ProjectCard key={project._id} project={project} index={index} />
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </div>
+      )}
+    </motion.div>
   );
 };
 

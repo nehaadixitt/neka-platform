@@ -49,11 +49,40 @@ router.post('/', auth, upload.single('script'), async (req, res) => {
   }
 });
 
-// Get user's projects
+// Get user's projects (owned + collaborative)
 router.get('/my', auth, async (req, res) => {
   try {
-    const projects = await Project.find({ userId: req.user.id }).sort({ createdAt: -1 });
-    res.json(projects);
+    // Get owned projects
+    const ownedProjects = await Project.find({ userId: req.user.id })
+      .populate('collaborators', 'name artistType')
+      .sort({ createdAt: -1 });
+    
+    // Get collaborative projects
+    const collaborativeProjects = await Project.find({ 
+      collaborators: req.user.id 
+    })
+      .populate('userId', 'name artistType')
+      .populate('collaborators', 'name artistType')
+      .sort({ createdAt: -1 });
+    
+    // Mark projects as owned or collaborative
+    const markedOwnedProjects = ownedProjects.map(project => ({
+      ...project.toObject(),
+      isOwner: true,
+      isCollaborative: project.collaborators.length > 0
+    }));
+    
+    const markedCollaborativeProjects = collaborativeProjects.map(project => ({
+      ...project.toObject(),
+      isOwner: false,
+      isCollaborative: true
+    }));
+    
+    // Combine and sort by creation date
+    const allProjects = [...markedOwnedProjects, ...markedCollaborativeProjects]
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    
+    res.json(allProjects);
   } catch (err) {
     res.status(500).send('Server error');
   }

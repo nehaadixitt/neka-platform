@@ -1,58 +1,83 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { Film, User, FolderOpen, MessageCircle, Users, LogOut } from 'lucide-react';
+import NotificationBell from './NotificationBell';
 
 const Navbar = ({ user, logout }) => {
-  const navStyle = {
-    backgroundColor: '#2c3e50',
-    padding: '1rem 2rem',
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    color: 'white'
-  };
+  const location = useLocation();
 
-  const linkStyle = {
-    color: 'white',
-    textDecoration: 'none',
-    margin: '0 1rem',
-    padding: '0.5rem 1rem',
-    borderRadius: '4px',
-    transition: 'background-color 0.3s'
-  };
-
-  const buttonStyle = {
-    ...linkStyle,
-    backgroundColor: 'transparent',
-    border: 'none',
-    cursor: 'pointer'
+  const NavLink = ({ to, children, icon: Icon }) => {
+    const isActive = location.pathname === to;
+    return (
+      <Link to={to}>
+        <motion.div
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-300 ${
+            isActive 
+              ? 'bg-white/20 text-white' 
+              : 'text-white/80 hover:text-white hover:bg-white/10'
+          }`}
+        >
+          {Icon && <Icon size={18} />}
+          <span>{children}</span>
+        </motion.div>
+      </Link>
+    );
   };
 
   return (
-    <nav style={navStyle}>
-      <div>
-        <Link to="/" style={{...linkStyle, fontSize: '1.5rem', fontWeight: 'bold'}}>
-          NEKA
-        </Link>
+    <motion.nav 
+      initial={{ y: -100 }}
+      animate={{ y: 0 }}
+      className="bg-black/20 backdrop-blur-lg border-b border-white/10 sticky top-0 z-50"
+    >
+      <div className="container mx-auto px-4">
+        <div className="flex justify-between items-center py-4">
+          <Link to="/">
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              className="flex items-center space-x-2"
+            >
+              <Film className="text-purple-400" size={28} />
+              <span className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
+                NEKA
+              </span>
+            </motion.div>
+          </Link>
+          
+          <div className="flex items-center space-x-2">
+            {user ? (
+              <>
+                <span className="text-white/80 mr-4 hidden md:block">
+                  Welcome, {user.name}
+                </span>
+                <NavLink to="/profile" icon={User}>Profile</NavLink>
+                <NavLink to="/projects" icon={FolderOpen}>Projects</NavLink>
+                <NavLink to="/collaborations" icon={Users}>Collaborations</NavLink>
+                <NavLink to="/messages" icon={MessageCircle}>Messages</NavLink>
+                <NotificationBell />
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={logout}
+                  className="flex items-center space-x-2 px-4 py-2 rounded-lg text-white/80 hover:text-white hover:bg-red-500/20 transition-all duration-300"
+                >
+                  <LogOut size={18} />
+                  <span>Logout</span>
+                </motion.button>
+              </>
+            ) : (
+              <>
+                <NavLink to="/login">Login</NavLink>
+                <NavLink to="/register">Register</NavLink>
+              </>
+            )}
+          </div>
+        </div>
       </div>
-      
-      <div style={{display: 'flex', alignItems: 'center'}}>
-        {user ? (
-          <>
-            <span style={{marginRight: '1rem'}}>Welcome, {user.name}</span>
-            <Link to="/profile" style={linkStyle}>My Profile</Link>
-            <Link to="/projects" style={linkStyle}>Projects</Link>
-            <Link to="/collaborations" style={linkStyle}>Collaborations</Link>
-            <Link to="/messages" style={linkStyle}>Messages</Link>
-            <button onClick={logout} style={buttonStyle}>Logout</button>
-          </>
-        ) : (
-          <>
-            <Link to="/login" style={linkStyle}>Login</Link>
-            <Link to="/register" style={linkStyle}>Register</Link>
-          </>
-        )}
-      </div>
-    </nav>
+    </motion.nav>
   );
 };
 

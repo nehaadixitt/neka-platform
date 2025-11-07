@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { Edit3, Save, X, User, Mail, Briefcase, MessageSquare, Users, FolderOpen } from 'lucide-react';
 import axios from '../utils/auth';
 
 const Profile = ({ user, setUser }) => {
@@ -50,131 +52,231 @@ const Profile = ({ user, setUser }) => {
     }
   };
 
-  const cardStyle = {
-    backgroundColor: 'white',
-    padding: '1.5rem',
-    marginBottom: '1rem',
-    borderRadius: '8px',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-  };
-
-  const inputStyle = {
-    width: '100%',
-    padding: '0.5rem',
-    margin: '0.25rem 0',
-    border: '1px solid #ddd',
-    borderRadius: '4px'
-  };
-
-  const buttonStyle = {
-    padding: '0.5rem 1rem',
-    margin: '0.5rem 0.5rem 0.5rem 0',
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer'
-  };
-
   const ongoingProjects = projects.filter(p => p.status === 'ongoing');
   const finishedProjects = projects.filter(p => p.status === 'finished');
 
+  const ProjectCard = ({ project, showCollabButton = false }) => (
+    <motion.div
+      whileHover={{ y: -2 }}
+      className="bg-white/5 rounded-lg p-4 border border-white/10 hover:border-purple-400/50 transition-all duration-300"
+    >
+      <h4 className="font-semibold text-white mb-2">{project.title}</h4>
+      <p className="text-white/70 text-sm mb-3 line-clamp-2">{project.summary}</p>
+      {showCollabButton && (
+        <button className="btn-primary text-xs">
+          Request Collaboration
+        </button>
+      )}
+    </motion.div>
+  );
+
   return (
-    <div style={{maxWidth: '800px', margin: '0 auto'}}>
-      <div style={cardStyle}>
-        <h2 style={{marginBottom: '1rem', color: '#2c3e50'}}>My Profile</h2>
-        
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6 }}
+      className="max-w-4xl mx-auto"
+    >
+      {/* Profile Header */}
+      <div className="card mb-8">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-6">
+          <div className="flex items-center space-x-4 mb-4 md:mb-0">
+            <div className="w-20 h-20 bg-gradient-to-br from-purple-500 to-blue-500 rounded-full flex items-center justify-center">
+              <User size={32} className="text-white" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-white">{user?.name}</h1>
+              <p className="text-purple-300">{user?.artistType}</p>
+            </div>
+          </div>
+          
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setEditing(!editing)}
+            className="btn-secondary flex items-center space-x-2"
+          >
+            <Edit3 size={16} />
+            <span>{editing ? 'Cancel' : 'Edit Profile'}</span>
+          </motion.button>
+        </div>
+
         {editing ? (
-          <form onSubmit={handleSubmit}>
-            <input
-              type="text"
-              name="name"
-              placeholder="Name"
-              value={formData.name}
-              onChange={handleChange}
-              style={inputStyle}
-              required
-            />
-            <select
-              name="artistType"
-              value={formData.artistType}
-              onChange={handleChange}
-              style={inputStyle}
-              required
-            >
-              <option value="Actor">Actor</option>
-              <option value="Director">Director</option>
-              <option value="Writer">Writer</option>
-              <option value="Editor">Editor</option>
-              <option value="Producer">Producer</option>
-              <option value="Cinematographer">Cinematographer</option>
-              <option value="Other">Other</option>
-            </select>
-            <textarea
-              name="bio"
-              placeholder="Bio"
-              value={formData.bio}
-              onChange={handleChange}
-              style={{...inputStyle, height: '80px'}}
-            />
-            <input
-              type="text"
-              name="contactInfo"
-              placeholder="Contact Info"
-              value={formData.contactInfo}
-              onChange={handleChange}
-              style={inputStyle}
-            />
-            <button type="submit" style={{...buttonStyle, backgroundColor: '#27ae60', color: 'white'}}>
-              Save
-            </button>
-            <button type="button" onClick={() => setEditing(false)} style={{...buttonStyle, backgroundColor: '#95a5a6', color: 'white'}}>
-              Cancel
-            </button>
-          </form>
+          <motion.form 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            onSubmit={handleSubmit}
+            className="space-y-4"
+          >
+            <div>
+              <label className="block text-white/80 mb-2">Name</label>
+              <input
+                type="text"
+                name="name"
+                value={formData.name}
+                onChange={handleChange}
+                className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white placeholder-white/50 focus:border-purple-400 focus:outline-none"
+                required
+              />
+            </div>
+            
+            <div>
+              <label className="block text-white/80 mb-2">Artist Type</label>
+              <select
+                name="artistType"
+                value={formData.artistType}
+                onChange={handleChange}
+                className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white focus:border-purple-400 focus:outline-none"
+                required
+              >
+                <option value="Actor">Actor</option>
+                <option value="Director">Director</option>
+                <option value="Writer">Writer</option>
+                <option value="Editor">Editor</option>
+                <option value="Producer">Producer</option>
+                <option value="Cinematographer">Cinematographer</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            
+            <div>
+              <label className="block text-white/80 mb-2">Bio</label>
+              <textarea
+                name="bio"
+                value={formData.bio}
+                onChange={handleChange}
+                rows="4"
+                className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white placeholder-white/50 focus:border-purple-400 focus:outline-none resize-none"
+                placeholder="Tell us about yourself..."
+              />
+            </div>
+            
+            <div>
+              <label className="block text-white/80 mb-2">Contact Info</label>
+              <input
+                type="text"
+                name="contactInfo"
+                value={formData.contactInfo}
+                onChange={handleChange}
+                className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white placeholder-white/50 focus:border-purple-400 focus:outline-none"
+                placeholder="Email, phone, or social media"
+              />
+            </div>
+            
+            <div className="flex space-x-4">
+              <button type="submit" className="btn-primary flex items-center space-x-2">
+                <Save size={16} />
+                <span>Save Changes</span>
+              </button>
+              <button 
+                type="button" 
+                onClick={() => setEditing(false)}
+                className="btn-secondary flex items-center space-x-2"
+              >
+                <X size={16} />
+                <span>Cancel</span>
+              </button>
+            </div>
+          </motion.form>
         ) : (
-          <div>
-            <h3>{user?.name}</h3>
-            <p><strong>Type:</strong> {user?.artistType}</p>
-            <p><strong>Email:</strong> {user?.email}</p>
-            {user?.bio && <p><strong>Bio:</strong> {user.bio}</p>}
-            {user?.contactInfo && <p><strong>Contact:</strong> {user.contactInfo}</p>}
-            <button onClick={() => setEditing(true)} style={{...buttonStyle, backgroundColor: '#3498db', color: 'white'}}>
-              Edit Profile
-            </button>
+          <div className="space-y-4">
+            <div className="flex items-center space-x-3">
+              <Mail size={16} className="text-purple-400" />
+              <span className="text-white/80">{user?.email}</span>
+            </div>
+            
+            {user?.bio && (
+              <div className="flex items-start space-x-3">
+                <MessageSquare size={16} className="text-purple-400 mt-1" />
+                <p className="text-white/80">{user.bio}</p>
+              </div>
+            )}
+            
+            {user?.contactInfo && (
+              <div className="flex items-center space-x-3">
+                <Briefcase size={16} className="text-purple-400" />
+                <span className="text-white/80">{user.contactInfo}</span>
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      <div style={cardStyle}>
-        <h3 style={{marginBottom: '1rem', color: '#2c3e50'}}>Ongoing Projects ({ongoingProjects.length})</h3>
-        {ongoingProjects.map(project => (
-          <div key={project._id} style={{padding: '1rem', border: '1px solid #eee', marginBottom: '0.5rem', borderRadius: '4px'}}>
-            <h4>{project.title}</h4>
-            <p>{project.summary}</p>
+      {/* Projects Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Ongoing Projects */}
+        <motion.div 
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.2 }}
+          className="card"
+        >
+          <div className="flex items-center space-x-2 mb-4">
+            <FolderOpen className="text-yellow-400" size={20} />
+            <h3 className="text-xl font-semibold text-white">
+              Ongoing Projects ({ongoingProjects.length})
+            </h3>
           </div>
-        ))}
-      </div>
+          <div className="space-y-3">
+            {ongoingProjects.length === 0 ? (
+              <p className="text-white/60 text-center py-8">No ongoing projects</p>
+            ) : (
+              ongoingProjects.slice(0, 3).map(project => (
+                <ProjectCard key={project._id} project={project} />
+              ))
+            )}
+          </div>
+        </motion.div>
 
-      <div style={cardStyle}>
-        <h3 style={{marginBottom: '1rem', color: '#2c3e50'}}>Finished Projects ({finishedProjects.length})</h3>
-        {finishedProjects.map(project => (
-          <div key={project._id} style={{padding: '1rem', border: '1px solid #eee', marginBottom: '0.5rem', borderRadius: '4px'}}>
-            <h4>{project.title}</h4>
-            <p>{project.summary}</p>
+        {/* Finished Projects */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="card"
+        >
+          <div className="flex items-center space-x-2 mb-4">
+            <FolderOpen className="text-green-400" size={20} />
+            <h3 className="text-xl font-semibold text-white">
+              Completed Projects ({finishedProjects.length})
+            </h3>
           </div>
-        ))}
-      </div>
+          <div className="space-y-3">
+            {finishedProjects.length === 0 ? (
+              <p className="text-white/60 text-center py-8">No completed projects</p>
+            ) : (
+              finishedProjects.slice(0, 3).map(project => (
+                <ProjectCard key={project._id} project={project} showCollabButton />
+              ))
+            )}
+          </div>
+        </motion.div>
 
-      <div style={cardStyle}>
-        <h3 style={{marginBottom: '1rem', color: '#2c3e50'}}>Collaborative Projects ({collabProjects.length})</h3>
-        {collabProjects.map(project => (
-          <div key={project._id} style={{padding: '1rem', border: '1px solid #eee', marginBottom: '0.5rem', borderRadius: '4px'}}>
-            <h4>{project.title}</h4>
-            <p>{project.summary}</p>
-            <p><small>Owner: {project.userId.name}</small></p>
+        {/* Collaborative Projects */}
+        <motion.div 
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.4 }}
+          className="card"
+        >
+          <div className="flex items-center space-x-2 mb-4">
+            <Users className="text-purple-400" size={20} />
+            <h3 className="text-xl font-semibold text-white">
+              Collaborations ({collabProjects.length})
+            </h3>
           </div>
-        ))}
+          <div className="space-y-3">
+            {collabProjects.length === 0 ? (
+              <p className="text-white/60 text-center py-8">No collaborations yet</p>
+            ) : (
+              collabProjects.slice(0, 3).map(project => (
+                <ProjectCard key={project._id} project={project} />
+              ))
+            )}
+          </div>
+        </motion.div>
       </div>
-    </div>
+    </motion.div>
   );
 };
 

@@ -1,36 +1,79 @@
 const express = require('express');
 const CollabRequest = require('../models/CollabRequest');
 const Project = require('../models/Project');
+const User = require('../models/User');
 const auth = require('../middleware/auth');
 
 const router = express.Router();
 
-// Send collaboration request
+// Create collaboration request
 router.post('/request', auth, async (req, res) => {
-  const { projectId, receiverId } = req.body;
+  const { targetUserId, targetProjectId, message } = req.body;
+
+  // Validation
+  if (!targetUserId || !targetProjectId || !message) {
+    return res.status(400).json({ msg: 'All fields are required' });
+  }
+
+  if (message.length > 500) {
+    return res.status(400).json({ msg: 'Message must be less than 500 characters' });
+  }
 
   try {
+    // Verify project belongs to requester
+    const project = await Project.findOne({ _id: targetProjectId, userId: req.user.id });
+    if (!project) {
+      return res.status(404).json({ msg: 'Project not found or not owned by you' });
+    }
+
+    // Verify target user exists
+    const targetUser = await User.findById(targetUserId);
+    if (!targetUser) {
+      return res.status(404).json({ msg: 'Target user not found' });
+    }
+
     // Check if request already exists
     const existingRequest = await CollabRequest.findOne({
       senderId: req.user.id,
-      projectId,
-      receiverId
+      receiverId: targetUserId,
+      projectId: targetProjectId
     });
 
     if (existingRequest) {
-      return res.status(400).json({ msg: 'Request already sent' });
+      return res.status(400).json({ msg: 'Collaboration request already sent' });
     }
 
+    // Create collaboration request
     const collabRequest = new CollabRequest({
       senderId: req.user.id,
-      receiverId,
-      projectId
+      receiverId: targetUserId,
+      projectId: targetProjectId,
+      message: message.trim(),
+      status: 'pending'
     });
 
     await collabRequest.save();
-    res.json(collabRequest);
+
+    // Create notification
+    const Notification = require('../models/Notification');
+    const sender = await User.findById(req.user.id);
+    
+    const notification = new Notification({
+      userId: targetUserId,
+      type: 'collaboration_request',
+      message: `${sender.name} wants to collaborate on "${project.title}"`,
+      relatedId: collabRequest._id
+    });
+    
+    await notification.save();
+
+    res.status(201).json({ 
+      msg: 'Collaboration request sent successfully',
+      request: collabRequest 
+    });
   } catch (err) {
-    res.status(500).send('Server error');
+    console.error('Error creating collaboration request:', err);
+    res.status(500).json({ msg: 'Server error' });
   }
 });
 
@@ -50,35 +93,103 @@ router.get('/incoming', auth, async (req, res) => {
   }
 });
 
-// Accept/Deny collaboration request
-router.put('/request/:id', auth, async (req, res) => {
-  const { status } = req.body; // 'accepted' or 'denied'
-
+// Accept collaboration request
+router.put('/request/:id/accept', auth, async (req, res) => {
   try {
-    const request = await CollabRequest.findById(req.params.id);
+    const request = await CollabRequest.findById(req.params.id)
+      .populate('projectId', 'title')
+      .populate('senderId', 'name');
     
     if (!request) {
       return res.status(404).json({ msg: 'Request not found' });
     }
     
     if (request.receiverId.toString() !== req.user.id) {
-      return res.status(401).json({ msg: 'Not authorized' });
+      return res.status(401).json({ msg: 'Not authorized to accept this request' });
     }
 
-    request.status = status;
+    if (request.status !== 'pending') {
+      return res.status(400).json({ msg: 'Request already processed' });
+    }
+
+    // Update request status
+    request.status = 'accepted';
     await request.save();
 
-    // If accepted, add collaborator to project
-    if (status === 'accepted') {
-      await Project.findByIdAndUpdate(
-        request.projectId,
-        { $addToSet: { collaborators: request.senderId } }
-      );
+    // Add collaborator to project (the person accepting becomes the collaborator)
+    const project = await Project.findByIdAndUpdate(
+      request.projectId,
+      { $addToSet: { collaborators: req.user.id } },
+      { new: true }
+    ).populate('collaborators', 'name artistType');
+
+    // Create notification for sender
+    const Notification = require('../models/Notification');
+    const receiver = await User.findById(req.user.id);
+    
+    const notification = new Notification({
+      userId: request.senderId,
+      type: 'collaboration_accepted',
+      message: `${receiver.name} accepted your collaboration request for "${request.projectId.title}"`,
+      relatedId: request.projectId._id
+    });
+    
+    await notification.save();
+
+    res.json({ 
+      msg: 'Collaboration request accepted successfully',
+      request,
+      project 
+    });
+  } catch (err) {
+    console.error('Error accepting collaboration request:', err);
+    res.status(500).json({ msg: 'Server error' });
+  }
+});
+
+// Reject collaboration request
+router.put('/request/:id/reject', auth, async (req, res) => {
+  try {
+    const request = await CollabRequest.findById(req.params.id)
+      .populate('projectId', 'title')
+      .populate('senderId', 'name');
+    
+    if (!request) {
+      return res.status(404).json({ msg: 'Request not found' });
+    }
+    
+    if (request.receiverId.toString() !== req.user.id) {
+      return res.status(401).json({ msg: 'Not authorized to reject this request' });
     }
 
-    res.json(request);
+    if (request.status !== 'pending') {
+      return res.status(400).json({ msg: 'Request already processed' });
+    }
+
+    // Update request status
+    request.status = 'denied';
+    await request.save();
+
+    // Create notification for sender
+    const Notification = require('../models/Notification');
+    const receiver = await User.findById(req.user.id);
+    
+    const notification = new Notification({
+      userId: request.senderId,
+      type: 'collaboration_denied',
+      message: `${receiver.name} declined your collaboration request for "${request.projectId.title}"`,
+      relatedId: request.projectId._id
+    });
+    
+    await notification.save();
+
+    res.json({ 
+      msg: 'Collaboration request rejected',
+      request 
+    });
   } catch (err) {
-    res.status(500).send('Server error');
+    console.error('Error rejecting collaboration request:', err);
+    res.status(500).json({ msg: 'Server error' });
   }
 });
 

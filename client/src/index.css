@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply min-h-screen text-white;
+    background: linear-gradient(rgba(0, 0, 0, 0.7), rgba(139, 0, 0, 0.8)), 
+                url('https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80') center/cover fixed;
+  }
+}
+
+@layer components {
+  .card {
+    @apply backdrop-blur-lg rounded-xl p-6 shadow-xl border border-red-300/30;
+    background: linear-gradient(135deg, rgba(220, 38, 38, 0.2), rgba(255, 255, 255, 0.1));
+  }
+  
+  .btn-primary {
+    @apply text-white px-6 py-2 rounded-lg transition-all duration-300 transform hover:scale-105;
+    background: linear-gradient(135deg, #dc2626, #ef4444, #ffffff);
+  }
+  
+  .btn-secondary {
+    @apply text-white px-6 py-2 rounded-lg transition-all duration-300 backdrop-blur-sm border border-red-300/50;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.2), rgba(220, 38, 38, 0.2));
+  }
+  
+  .input {
+    @apply w-full rounded-lg px-4 py-2 text-white placeholder-white/70 focus:outline-none border border-red-300/50;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(220, 38, 38, 0.1));
+  }
+  
+  .input:focus {
+    border-color: #ef4444;
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.3);
+  }
+  
+  .cinema-header {
+    background: linear-gradient(135deg, #dc2626, #ef4444, #ffffff, #ef4444, #dc2626);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  
+  .dropdown-text {
+    @apply text-black;
+  }
+}
