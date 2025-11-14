@@ -12,6 +12,8 @@ import Messages from './pages/Messages';
 import Collaborations from './pages/Collaborations';
 import ProjectDetail from './pages/ProjectDetail';
 import TestCollab from './pages/TestCollab';
+import PapuMaster from './pages/PapuMaster';
+
 
 const API = process.env.REACT_APP_API_URL;
 
@@ -62,8 +64,10 @@ function App() {
               <Route path="/profile" element={user ? <Profile user={user} setUser={setUser} /> : <Navigate to="/login" />} />
               <Route path="/projects" element={user ? <Projects user={user} /> : <Navigate to="/login" />} />
               <Route path="/project/:id" element={user ? <ProjectDetail user={user} /> : <Navigate to="/login" />} />
+
               <Route path="/messages" element={user ? <Messages user={user} /> : <Navigate to="/login" />} />
               <Route path="/collaborations" element={user ? <Collaborations user={user} /> : <Navigate to="/login" />} />
+              <Route path="/papu-master" element={user ? <PapuMaster user={user} /> : <Navigate to="/login" />} />
               <Route path="/test-collab" element={user ? <TestCollab user={user} /> : <Navigate to="/login" />} />
             </Routes>
           </AnimatePresence>

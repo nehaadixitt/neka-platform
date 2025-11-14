@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Film, User, FolderOpen, MessageCircle, Users, LogOut } from 'lucide-react';
+import { Film, User, FolderOpen, MessageCircle, Users, LogOut, Brain } from 'lucide-react';
 import NotificationBell from './NotificationBell';
 
 const Navbar = ({ user, logout }) => {
@@ -55,6 +55,7 @@ const Navbar = ({ user, logout }) => {
                 </span>
                 <NavLink to="/profile" icon={User}>Profile</NavLink>
                 <NavLink to="/projects" icon={FolderOpen}>Projects</NavLink>
+                <NavLink to="/papu-master" icon={Brain}>Papu Master</NavLink>
                 <NavLink to="/collaborations" icon={Users}>Collaborations</NavLink>
                 <NavLink to="/messages" icon={MessageCircle}>Messages</NavLink>
                 <NotificationBell />

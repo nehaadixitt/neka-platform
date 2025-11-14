@@ -29,9 +29,15 @@ app.use('/api/users', require('./routes/users'));
 app.use('/api/projects', require('./routes/projects'));
 app.use('/api/collaborations', require('./routes/collaborations'));
 app.use('/api/messages', require('./routes/messages'));
+app.use('/api/ai', require('./routes/ai'));
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/project-updates', require('./routes/projectUpdates'));
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
+// Serve React frontend (if using build)
+app.use(express.static(path.join(__dirname, 'client', 'build')));
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'client', 'build', 'index.html'));
+});

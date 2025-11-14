@@ -142,4 +142,33 @@ router.put('/:id', auth, async (req, res) => {
   }
 });
 
+// Delete project
+router.delete('/:id', auth, async (req, res) => {
+  try {
+    const project = await Project.findById(req.params.id);
+    
+    if (!project) {
+      return res.status(404).json({ msg: 'Project not found' });
+    }
+    
+    if (project.userId.toString() !== req.user.id) {
+      return res.status(401).json({ msg: 'Not authorized' });
+    }
+
+    // Delete related collaboration requests
+    const CollabRequest = require('../models/CollabRequest');
+    await CollabRequest.deleteMany({ projectId: req.params.id });
+    
+    // Delete related notifications
+    const Notification = require('../models/Notification');
+    await Notification.deleteMany({ relatedId: req.params.id });
+
+    // Delete the project
+    await Project.findByIdAndDelete(req.params.id);
+    res.json({ msg: 'Project deleted' });
+  } catch (err) {
+    res.status(500).send('Server error');
+  }
+});
+
 module.exports = router;

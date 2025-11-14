@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, FolderOpen, FileText, Calendar, Users, X, Upload, ArrowRight, Crown, UserCheck } from 'lucide-react';
+import { Plus, FolderOpen, FileText, Calendar, Users, X, Upload, ArrowRight, Crown, UserCheck, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios from '../utils/auth';
 
@@ -73,13 +73,25 @@ const Projects = ({ user }) => {
   const ongoingProjects = projects.filter(p => p.status === 'ongoing');
   const finishedProjects = projects.filter(p => p.status === 'finished');
 
+  const handleDelete = async (e, projectId) => {
+    e.stopPropagation();
+    if (window.confirm('Are you sure you want to delete this project?')) {
+      try {
+        await axios.delete(`/api/projects/${projectId}`);
+        fetchProjects();
+      } catch (err) {
+        console.error('Error deleting project:', err);
+      }
+    }
+  };
+
   const ProjectCard = ({ project, index }) => (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.1 }}
       whileHover={{ y: -5, scale: 1.02 }}
-      className="card group cursor-pointer"
+      className="card group cursor-pointer relative"
       onClick={() => navigate(`/project/${project._id}`)}
     >
       <div className="flex items-start justify-between mb-4">
@@ -150,7 +162,20 @@ const Projects = ({ user }) => {
             <span className="text-sm">{project.collaborators.length} collaborators</span>
           </div>
         )}
-        <ArrowRight className="text-white/40 group-hover:text-purple-400 transition-colors" size={20} />
+        <div className="flex items-center space-x-2">
+          {project.isOwner && (
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              onClick={(e) => handleDelete(e, project._id)}
+              className="p-2 rounded-lg text-red-400 hover:text-red-300 hover:bg-red-500/20 transition-colors opacity-0 group-hover:opacity-100"
+              title="Delete Project"
+            >
+              <Trash2 size={16} />
+            </motion.button>
+          )}
+          <ArrowRight className="text-white/40 group-hover:text-purple-400 transition-colors" size={20} />
+        </div>
       </div>
     </motion.div>
   );
@@ -343,6 +368,8 @@ const Projects = ({ user }) => {
           )}
         </div>
       )}
+
+
     </motion.div>
   );
 };
