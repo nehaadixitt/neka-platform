@@ -40,6 +40,7 @@ app.get('/api/test', (req, res) => {
     message: 'API is working',
     mongoConnected: mongoose.connection.readyState === 1,
     jwtSecret: !!process.env.JWT_SECRET,
+    groqApiKey: !!process.env.GROQ_API_KEY,
     nodeEnv: process.env.NODE_ENV
   });
 });
