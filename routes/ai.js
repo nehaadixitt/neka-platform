@@ -78,30 +78,56 @@ function analyzeScript(content) {
 
 // AI Analysis endpoint
 router.post('/analyze-script', auth, upload.single('script'), async (req, res) => {
+  console.log('AI Analysis started');
+  
   try {
     if (!req.file) {
+      console.log('No file uploaded');
       return res.status(400).json({ msg: 'No script file uploaded' });
     }
 
+    console.log('File uploaded:', req.file.originalname, 'Size:', req.file.size);
     const scriptPath = path.resolve(req.file.path);
     const ext = path.extname(req.file.originalname).toLowerCase();
     
     // Read file content based on type
     let content = '';
     
+    console.log('Reading file type:', ext);
+    
     if (ext === '.txt') {
       content = fs.readFileSync(scriptPath, 'utf8');
     } else if (ext === '.pdf') {
-      const dataBuffer = fs.readFileSync(scriptPath);
-      const pdfData = await pdfParse(dataBuffer);
-      content = pdfData.text;
+      try {
+        const dataBuffer = fs.readFileSync(scriptPath);
+        const pdfData = await pdfParse(dataBuffer);
+        content = pdfData.text;
+      } catch (pdfError) {
+        console.error('PDF parsing error:', pdfError);
+        throw new Error('Failed to parse PDF file');
+      }
     } else if (ext === '.docx') {
-      const result = await mammoth.extractRawText({ path: scriptPath });
-      content = result.value;
+      try {
+        const result = await mammoth.extractRawText({ path: scriptPath });
+        content = result.value;
+      } catch (docxError) {
+        console.error('DOCX parsing error:', docxError);
+        throw new Error('Failed to parse DOCX file');
+      }
+    } else {
+      throw new Error(`Unsupported file type: ${ext}`);
+    }
+    
+    console.log('Content extracted, length:', content.length);
+    
+    if (!content || content.trim().length === 0) {
+      throw new Error('No readable content found in file');
     }
     
     // Analyze the script
+    console.log('Starting analysis');
     const analysis = analyzeScript(content);
+    console.log('Analysis complete:', analysis);
     
     // Clean up uploaded file
     fs.unlinkSync(scriptPath);
@@ -119,12 +145,19 @@ router.post('/analyze-script', auth, upload.single('script'), async (req, res) =
     });
     
   } catch (error) {
-    console.error('AI Analysis Error:', error);
+    console.error('AI Analysis Error:', error.message);
+    console.error('Stack trace:', error.stack);
+    
     // Clean up file if it exists
     if (req.file && fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);
     }
-    res.status(500).json({ msg: 'Analysis failed', error: error.message });
+    
+    res.status(500).json({ 
+      msg: 'Analysis failed', 
+      error: error.message,
+      details: 'Check server logs for more information'
+    });
   }
 });
 
