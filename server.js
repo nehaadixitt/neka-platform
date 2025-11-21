@@ -11,7 +11,8 @@ app.use(cors({
   origin: [
     'http://localhost:3000',
     /\.ngrok\.io$/,
-    /\.ngrok-free\.app$/
+    /\.ngrok-free\.app$/,
+    /\.onrender\.com$/
   ],
   credentials: true
 }));
