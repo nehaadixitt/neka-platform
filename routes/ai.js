@@ -3,7 +3,6 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const auth = require('../middleware/auth');
-const pdfParse = require('pdf-parse').default || require('pdf-parse');
 
 const router = express.Router();
 
@@ -24,12 +23,12 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage,
   fileFilter: (req, file, cb) => {
-    const allowedTypes = ['.txt', '.pdf'];
+    const allowedTypes = ['.txt'];
     const ext = path.extname(file.originalname).toLowerCase();
     if (allowedTypes.includes(ext)) {
       cb(null, true);
     } else {
-      cb(new Error('Only .txt and .pdf files are supported'));
+      cb(new Error('Only .txt files are supported. Please copy your script content and save as .txt file.'));
     }
   }
 });
@@ -87,42 +86,10 @@ router.post('/analyze-script', auth, upload.single('script'), async (req, res) =
 
     console.log('File uploaded:', req.file.originalname, 'Size:', req.file.size);
     const scriptPath = path.resolve(req.file.path);
-    const ext = path.extname(req.file.originalname).toLowerCase();
     
-    // Read file content based on type
-    let content = '';
-    
-    if (ext === '.txt') {
-      console.log('Reading .txt file');
-      content = fs.readFileSync(scriptPath, 'utf8');
-    } else if (ext === '.pdf') {
-      console.log('Reading .pdf file');
-      try {
-        const dataBuffer = fs.readFileSync(scriptPath);
-        console.log('PDF buffer size:', dataBuffer.length);
-        
-        // Try different ways to call pdfParse
-        let pdfData;
-        if (typeof pdfParse === 'function') {
-          pdfData = await pdfParse(dataBuffer);
-        } else if (pdfParse.default && typeof pdfParse.default === 'function') {
-          pdfData = await pdfParse.default(dataBuffer);
-        } else {
-          throw new Error('PDF parser not available');
-        }
-        
-        content = pdfData.text;
-        console.log('PDF text extracted, length:', content.length);
-        
-        if (!content || content.trim().length < 10) {
-          throw new Error('PDF appears to be empty or contains no readable text');
-        }
-        
-      } catch (pdfError) {
-        console.error('PDF parsing detailed error:', pdfError);
-        throw new Error(`PDF parsing failed: ${pdfError.message}. Please ensure the PDF contains readable text.`);
-      }
-    }
+    // Read .txt file content
+    console.log('Reading .txt file');
+    const content = fs.readFileSync(scriptPath, 'utf8');
     
     console.log('Content extracted, length:', content.length);
     
