@@ -37,7 +37,12 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
 // Serve React frontend (if using build)
-app.use(express.static(path.join(__dirname, 'client', 'build')));
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'client', 'build', 'index.html'));
+// app.use(express.static(path.join(__dirname, 'client', 'build')));
+// app.get('*', (req, res) => {
+//   res.sendFile(path.join(__dirname, 'client', 'build', 'index.html'));
+// });
+
+// Test endpoint
+app.get('/', (req, res) => {
+  res.json({ message: 'NEKA Platform API is running!' });
 });
