@@ -40,7 +40,8 @@ router.post('/register', [
       res.json({ token, user: { id: user.id, name: user.name, email: user.email } });
     });
   } catch (err) {
-    res.status(500).send('Server error');
+    console.error('Registration error:', err);
+    res.status(500).json({ msg: 'Server error', error: err.message });
   }
 });
 
