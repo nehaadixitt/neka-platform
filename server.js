@@ -34,6 +34,16 @@ app.use('/api/ai', require('./routes/ai'));
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/project-updates', require('./routes/projectUpdates'));
 
+// Test endpoint for debugging
+app.get('/api/test', (req, res) => {
+  res.json({
+    message: 'API is working',
+    mongoConnected: mongoose.connection.readyState === 1,
+    jwtSecret: !!process.env.JWT_SECRET,
+    nodeEnv: process.env.NODE_ENV
+  });
+});
+
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
