@@ -3,7 +3,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const auth = require('../middleware/auth');
-const pdfParse = require('pdf-parse');
+const pdfParse = require('pdf-parse').default || require('pdf-parse');
 
 const router = express.Router();
 
@@ -101,10 +101,15 @@ router.post('/analyze-script', auth, upload.single('script'), async (req, res) =
         const dataBuffer = fs.readFileSync(scriptPath);
         console.log('PDF buffer size:', dataBuffer.length);
         
-        const pdfData = await pdfParse(dataBuffer, {
-          max: 0, // Parse all pages
-          version: 'v1.10.100'
-        });
+        // Try different ways to call pdfParse
+        let pdfData;
+        if (typeof pdfParse === 'function') {
+          pdfData = await pdfParse(dataBuffer);
+        } else if (pdfParse.default && typeof pdfParse.default === 'function') {
+          pdfData = await pdfParse.default(dataBuffer);
+        } else {
+          throw new Error('PDF parser not available');
+        }
         
         content = pdfData.text;
         console.log('PDF text extracted, length:', content.length);
