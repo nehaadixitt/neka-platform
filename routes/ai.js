@@ -3,8 +3,6 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const auth = require('../middleware/auth');
-const pdfParse = require('pdf-parse');
-const mammoth = require('mammoth');
 
 const router = express.Router();
 
@@ -25,12 +23,12 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage,
   fileFilter: (req, file, cb) => {
-    const allowedTypes = ['.txt', '.pdf', '.docx'];
+    const allowedTypes = ['.txt'];
     const ext = path.extname(file.originalname).toLowerCase();
     if (allowedTypes.includes(ext)) {
       cb(null, true);
     } else {
-      cb(new Error('Only .txt, .pdf, and .docx files are supported'));
+      cb(new Error('Only .txt files are supported. Please convert your script to .txt format.'));
     }
   }
 });
@@ -88,35 +86,10 @@ router.post('/analyze-script', auth, upload.single('script'), async (req, res) =
 
     console.log('File uploaded:', req.file.originalname, 'Size:', req.file.size);
     const scriptPath = path.resolve(req.file.path);
-    const ext = path.extname(req.file.originalname).toLowerCase();
     
-    // Read file content based on type
-    let content = '';
-    
-    console.log('Reading file type:', ext);
-    
-    if (ext === '.txt') {
-      content = fs.readFileSync(scriptPath, 'utf8');
-    } else if (ext === '.pdf') {
-      try {
-        const dataBuffer = fs.readFileSync(scriptPath);
-        const pdfData = await pdfParse(dataBuffer);
-        content = pdfData.text;
-      } catch (pdfError) {
-        console.error('PDF parsing error:', pdfError);
-        throw new Error('Failed to parse PDF file');
-      }
-    } else if (ext === '.docx') {
-      try {
-        const result = await mammoth.extractRawText({ path: scriptPath });
-        content = result.value;
-      } catch (docxError) {
-        console.error('DOCX parsing error:', docxError);
-        throw new Error('Failed to parse DOCX file');
-      }
-    } else {
-      throw new Error(`Unsupported file type: ${ext}`);
-    }
+    // Read .txt file content
+    console.log('Reading .txt file');
+    const content = fs.readFileSync(scriptPath, 'utf8');
     
     console.log('Content extracted, length:', content.length);
     
