@@ -3,6 +3,8 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const auth = require('../middleware/auth');
+const pdfParse = require('pdf-parse');
+const mammoth = require('mammoth');
 
 const router = express.Router();
 
@@ -23,12 +25,12 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage,
   fileFilter: (req, file, cb) => {
-    const allowedTypes = ['.txt'];
+    const allowedTypes = ['.txt', '.pdf', '.docx'];
     const ext = path.extname(file.originalname).toLowerCase();
     if (allowedTypes.includes(ext)) {
       cb(null, true);
     } else {
-      cb(new Error('Only .txt files are supported'));
+      cb(new Error('Only .txt, .pdf, and .docx files are supported'));
     }
   }
 });
@@ -82,9 +84,21 @@ router.post('/analyze-script', auth, upload.single('script'), async (req, res) =
     }
 
     const scriptPath = path.resolve(req.file.path);
+    const ext = path.extname(req.file.originalname).toLowerCase();
     
-    // Read file content
-    const content = fs.readFileSync(scriptPath, 'utf8');
+    // Read file content based on type
+    let content = '';
+    
+    if (ext === '.txt') {
+      content = fs.readFileSync(scriptPath, 'utf8');
+    } else if (ext === '.pdf') {
+      const dataBuffer = fs.readFileSync(scriptPath);
+      const pdfData = await pdfParse(dataBuffer);
+      content = pdfData.text;
+    } else if (ext === '.docx') {
+      const result = await mammoth.extractRawText({ path: scriptPath });
+      content = result.value;
+    }
     
     // Analyze the script
     const analysis = analyzeScript(content);
