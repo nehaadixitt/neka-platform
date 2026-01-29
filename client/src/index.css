@@ -5,35 +5,35 @@
 @layer base {
   body {
     @apply min-h-screen text-white;
-    background: linear-gradient(rgba(0, 0, 0, 0.7), rgba(139, 0, 0, 0.8)), 
+    background: linear-gradient(rgba(0, 0, 0, 0.9), rgba(139, 0, 0, 0.7)), 
                 url('https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80') center/cover fixed;
   }
 }
 
 @layer components {
   .card {
-    @apply backdrop-blur-lg rounded-xl p-6 shadow-xl border border-red-300/30;
-    background: linear-gradient(135deg, rgba(220, 38, 38, 0.2), rgba(255, 255, 255, 0.1));
+    @apply backdrop-blur-lg rounded-xl p-6 shadow-xl border border-red-500/40;
+    background: linear-gradient(135deg, rgba(0, 0, 0, 0.8), rgba(220, 38, 38, 0.3));
   }
   
   .btn-primary {
     @apply text-white px-6 py-2 rounded-lg transition-all duration-300 transform hover:scale-105;
-    background: linear-gradient(135deg, #dc2626, #ef4444, #ffffff);
+    background: linear-gradient(135deg, #dc2626, #b91c1c);
   }
   
   .btn-secondary {
-    @apply text-white px-6 py-2 rounded-lg transition-all duration-300 backdrop-blur-sm border border-red-300/50;
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.2), rgba(220, 38, 38, 0.2));
+    @apply text-white px-6 py-2 rounded-lg transition-all duration-300 backdrop-blur-sm border border-red-500/60;
+    background: linear-gradient(135deg, rgba(0, 0, 0, 0.6), rgba(220, 38, 38, 0.4));
   }
   
   .input {
-    @apply w-full rounded-lg px-4 py-2 text-white placeholder-white/70 focus:outline-none border border-red-300/50;
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(220, 38, 38, 0.1));
+    @apply w-full rounded-lg px-4 py-2 text-white placeholder-white/70 focus:outline-none border border-red-500/50;
+    background: linear-gradient(135deg, rgba(0, 0, 0, 0.7), rgba(220, 38, 38, 0.2));
   }
   
   .input:focus {
-    border-color: #ef4444;
-    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.3);
+    border-color: #dc2626;
+    box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.5);
   }
   
   .cinema-header {

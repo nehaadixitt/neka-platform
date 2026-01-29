@@ -26,7 +26,7 @@ const Home = () => {
         transition={{ delay: 0.2, duration: 0.8 }}
         className="text-center mb-16"
       >
-        <h1 className="text-6xl font-bold mb-6 bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 bg-clip-text text-transparent">
+        <h1 className="text-6xl font-bold mb-6 bg-gradient-to-r from-red-500 via-red-600 to-red-400 bg-clip-text text-transparent">
           NEKA
         </h1>
         <p className="text-xl text-white/80 mb-4 max-w-2xl mx-auto">
@@ -45,17 +45,17 @@ const Home = () => {
         className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16"
       >
         <div className="card text-center">
-          <Film className="mx-auto mb-4 text-purple-400" size={32} />
+          <Film className="mx-auto mb-4 text-red-400" size={32} />
           <h3 className="text-2xl font-bold mb-2">{projects.length}</h3>
           <p className="text-white/70">Featured Projects</p>
         </div>
         <div className="card text-center">
-          <Users className="mx-auto mb-4 text-blue-400" size={32} />
+          <Users className="mx-auto mb-4 text-red-500" size={32} />
           <h3 className="text-2xl font-bold mb-2">500+</h3>
           <p className="text-white/70">Active Artists</p>
         </div>
         <div className="card text-center">
-          <Star className="mx-auto mb-4 text-yellow-400" size={32} />
+          <Star className="mx-auto mb-4 text-red-600" size={32} />
           <h3 className="text-2xl font-bold mb-2">1000+</h3>
           <p className="text-white/70">Collaborations</p>
         </div>
@@ -89,15 +89,15 @@ const Home = () => {
                 className="card group"
               >
                 <div className="flex items-start justify-between mb-4">
-                  <h3 className="text-xl font-bold text-white group-hover:text-purple-400 transition-colors">
+                  <h3 className="text-xl font-bold text-white group-hover:text-red-400 transition-colors">
                     {project.title}
                   </h3>
-                  <ArrowRight className="text-white/40 group-hover:text-purple-400 transition-colors" size={20} />
+                  <ArrowRight className="text-white/40 group-hover:text-red-400 transition-colors" size={20} />
                 </div>
                 <p className="text-white/70 mb-3">
                   by {project.userId.name}
                 </p>
-                <span className="inline-block px-3 py-1 bg-purple-500/20 text-purple-300 rounded-full text-sm mb-3">
+                <span className="inline-block px-3 py-1 bg-red-500/20 text-red-300 rounded-full text-sm mb-3">
                   {project.userId.artistType}
                 </span>
                 <p className="text-white/60 line-clamp-3 mb-4">{project.summary}</p>
