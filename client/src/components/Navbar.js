@@ -40,8 +40,8 @@ const Navbar = ({ user, logout }) => {
               whileHover={{ scale: 1.05 }}
               className="flex items-center space-x-2"
             >
-              <Film className="text-purple-400" size={28} />
-              <span className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
+              <Film className="text-red-500" size={28} />
+              <span className="text-2xl font-bold bg-gradient-to-r from-black via-red-600 to-red-400 bg-clip-text text-transparent">
                 NEKA
               </span>
             </motion.div>
