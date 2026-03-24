@@ -1,4 +1,3 @@
-from groq import Groq
 from docx import Document
 from docx.shared import Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -7,8 +6,6 @@ import re
 import os
 
 # ==================== CONFIGURATION ====================
-GROQ_API_KEY = os.getenv('GROQ_API_KEY')  # Set this in your environment variables
-MODEL_NAME = "meta-llama/llama-4-scout-17b-16e-instruct"  # Use a model available in your Groq account
 
 # ==================== FILE READER ====================
 def read_script_file(file_path):
@@ -225,94 +222,22 @@ class ScriptParser:
             'page_count': self.count_pages()
         }
 
-# ==================== AI EVALUATOR ====================
-def get_ai_qualitative_analysis(script_text, metrics):
-    """Use Groq AI for qualitative analysis"""
-    
-    client = Groq(api_key=GROQ_API_KEY)
-    
-    prompt = f"""You are a professional screenplay analyst. Below is the script and its quantitative metrics.
-
-SCRIPT METRICS:
-- Page Count: {metrics['page_count']:.1f}
-- Scene Count: {metrics['scenes']['count']}
-- Average Scene Length: {metrics['scenes']['avg_length']:.1f} pages
-- Dialogue Ratio: {metrics['dialogue']['ratio']:.1f}%
-
-SCRIPT:
-{script_text[:3000]}  
-[... script continues ...]
-
-Please evaluate the screenplay on each category below and provide:
-
-- A score between 1 and 10
-- Specific strengths with quotes or references to the script
-- Specific weaknesses with concrete examples
-
-CATEGORIES:
-
-1. CHARACTER DEVELOPMENT
-- Are main characters properly motivated and growing?
-- Are characters authentic and relatable?
-- Provide examples.
-
-2. DIALOGUE QUALITY
-- Does dialogue sound natural and distinct for characters?
-- Is subtext used instead of exposition?
-- Does dialogue advance the plot?
-- Provide examples.
-
-3. STORY CONCEPT & ORIGINALITY
-- Is the premise original and compelling?
-- Does the story have a clear hook?
-- Reference specific elements.
-
-OUTPUT FORMAT:
-Score: X/10
-Strengths: <bullet points>
-Weaknesses: <bullet points>
-
-Be specific and concise. Reference exact script lines or scenes.
-"""
-    
-    response = client.chat.completions.create(
-        model=MODEL_NAME,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0,
-        max_tokens=2000,
-        seed=42
-    )
-    
-    return response.choices[0].message.content
-
 # ==================== CALCULATE FINAL SCORE ====================
-def calculate_final_score(metrics, ai_scores):
-    """Weighted scoring system: 70% Objective + 30% Qualitative"""
+def calculate_final_score(metrics):
+    """Weighted scoring system: 100% Objective Metrics"""
     
-    objective_score = (
-        metrics['format']['score'] * 0.15 +
-        metrics['grammar']['score'] * 0.10 +
-        metrics['dialogue']['score'] * 0.10 +
-        metrics['scenes']['score'] * 0.10 +
-        metrics['white_space']['score'] * 0.05
-    ) * 0.70
-    
-    character_score = ai_scores.get('character', 7) * 10
-    dialogue_quality_score = ai_scores.get('dialogue', 7) * 10
-    originality_score = ai_scores.get('originality', 7) * 10
-    
-    qualitative_score = (
-        character_score * 0.15 +
-        dialogue_quality_score * 0.10 +
-        originality_score * 0.05
-    ) * 0.30
-    
-    final_score = objective_score + qualitative_score
+    final_score = (
+        metrics['format']['score'] * 0.30 +
+        metrics['grammar']['score'] * 0.20 +
+        metrics['dialogue']['score'] * 0.20 +
+        metrics['scenes']['score'] * 0.20 +
+        metrics['white_space']['score'] * 0.10
+    )
     
     return final_score
 
 # ==================== GENERATE REPORT ====================
-def generate_report(script_title, metrics, ai_analysis, final_score):
+def generate_report(script_title, metrics, final_score):
     doc = Document()
     
     title = doc.add_heading('NEKA Script Evaluation Report', 0)
@@ -343,7 +268,7 @@ def generate_report(script_title, metrics, ai_analysis, final_score):
     rec_para.runs[0].font.color.rgb = color
     doc.add_paragraph('')
     
-    doc.add_heading('TIER 1: QUANTIFIABLE METRICS (70% weight)', level=1)
+    doc.add_heading('TIER 1: QUANTIFIABLE METRICS (100% weight)', level=1)
     
     doc.add_heading(f'1. Format Compliance: {metrics["format"]["score"]:.1f}/100', level=2)
     for issue in metrics['format']['issues']:
@@ -375,9 +300,6 @@ def generate_report(script_title, metrics, ai_analysis, final_score):
     for feedback in metrics['white_space']['feedback']:
         doc.add_paragraph(f'• {feedback}', style='List Bullet')
     doc.add_paragraph('')
-    
-    doc.add_heading('TIER 2: QUALITATIVE ANALYSIS (30% weight)', level=1)
-    doc.add_paragraph(ai_analysis)
     
     filename = f'{script_title.replace(" ", "_")}_Evaluation.docx'
     
@@ -431,18 +353,13 @@ def main():
     print(f"✓ Format score: {metrics['format']['score']:.1f}/100")
     print(f"✓ Grammar score: {metrics['grammar']['score']:.1f}/100")
     
-    print("\n🤖 Getting AI qualitative analysis...")
-    ai_analysis = get_ai_qualitative_analysis(script_text, metrics)
-    
-    ai_scores = {'character': 7, 'dialogue': 7, 'originality': 7}
-    
     print("\n📊 Calculating final score...")
-    final_score = calculate_final_score(metrics, ai_scores)
+    final_score = calculate_final_score(metrics)
     
     print(f"\n⭐ FINAL SCORE: {final_score:.1f}/100")
     
     print("\n📝 Generating report...")
-    generate_report(script_title, metrics, ai_analysis, final_score)
+    generate_report(script_title, metrics, final_score)
     
     print("\n✅ Evaluation complete!")
 
