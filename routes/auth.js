@@ -32,12 +32,16 @@ router.post('/register', [
     user.password = await bcrypt.hash(password, salt);
     await user.save();
 
+    if (!process.env.JWT_SECRET) {
+      return res.status(500).json({ msg: 'JWT_SECRET not configured on server' });
+    }
+
     const payload = { user: { id: user.id } };
     const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
     res.json({ token, user: { id: user.id, name: user.name, email: user.email } });
   } catch (err) {
     console.error('Registration error:', err);
-    res.status(500).json({ msg: 'Server error', error: err.message });
+    res.status(500).json({ msg: err.message });
   }
 });
 
@@ -64,12 +68,16 @@ router.post('/login', [
       return res.status(400).json({ msg: 'Invalid credentials' });
     }
 
+    if (!process.env.JWT_SECRET) {
+      return res.status(500).json({ msg: 'JWT_SECRET not configured on server' });
+    }
+
     const payload = { user: { id: user.id } };
     const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
     res.json({ token, user: { id: user.id, name: user.name, email: user.email } });
   } catch (err) {
     console.error('Login error:', err);
-    res.status(500).json({ msg: 'Server error', error: err.message });
+    res.status(500).json({ msg: err.message });
   }
 });
 
