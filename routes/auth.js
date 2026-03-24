@@ -28,17 +28,13 @@ router.post('/register', [
     }
 
     user = new User({ name, email, password, artistType });
-    
     const salt = await bcrypt.genSalt(10);
     user.password = await bcrypt.hash(password, salt);
-    
     await user.save();
 
     const payload = { user: { id: user.id } };
-    jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' }, (err, token) => {
-      if (err) throw err;
-      res.json({ token, user: { id: user.id, name: user.name, email: user.email } });
-    });
+    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
+    res.json({ token, user: { id: user.id, name: user.name, email: user.email } });
   } catch (err) {
     console.error('Registration error:', err);
     res.status(500).json({ msg: 'Server error', error: err.message });
@@ -69,10 +65,8 @@ router.post('/login', [
     }
 
     const payload = { user: { id: user.id } };
-    jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' }, (err, token) => {
-      if (err) throw err;
-      res.json({ token, user: { id: user.id, name: user.name, email: user.email } });
-    });
+    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
+    res.json({ token, user: { id: user.id, name: user.name, email: user.email } });
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).json({ msg: 'Server error', error: err.message });
