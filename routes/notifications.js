@@ -17,6 +17,20 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
+// Mark all notifications as read (must be before /:id/read)
+router.put('/read-all', auth, async (req, res) => {
+  try {
+    await Notification.updateMany(
+      { userId: req.user.id, read: false },
+      { read: true }
+    );
+    
+    res.json({ msg: 'All notifications marked as read' });
+  } catch (err) {
+    res.status(500).send('Server error');
+  }
+});
+
 // Mark notification as read
 router.put('/:id/read', auth, async (req, res) => {
   try {
@@ -30,20 +44,6 @@ router.put('/:id/read', auth, async (req, res) => {
     await notification.save();
     
     res.json(notification);
-  } catch (err) {
-    res.status(500).send('Server error');
-  }
-});
-
-// Mark all notifications as read
-router.put('/read-all', auth, async (req, res) => {
-  try {
-    await Notification.updateMany(
-      { userId: req.user.id, read: false },
-      { read: true }
-    );
-    
-    res.json({ msg: 'All notifications marked as read' });
   } catch (err) {
     res.status(500).send('Server error');
   }
