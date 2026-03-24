@@ -37,9 +37,11 @@ const PapuMaster = ({ user }) => {
     formData.append('script', selectedFile);
 
     try {
+      const token = localStorage.getItem('token');
       const response = await axios.post('/api/ai/analyze-script', formData, {
         headers: {
-          'Content-Type': 'multipart/form-data'
+          'Content-Type': 'multipart/form-data',
+          'x-auth-token': token
         }
       });
 
