@@ -15,8 +15,6 @@ import TestCollab from './pages/TestCollab';
 import PapuMaster from './pages/PapuMaster';
 
 
-const API = process.env.REACT_APP_API_URL;
-
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -24,9 +22,13 @@ function App() {
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) {
-      axios.get(`${API}/api/auth/me`)
+      axios.defaults.headers.common['x-auth-token'] = token;
+      axios.get('/api/auth/me')
         .then(res => setUser(res.data))
-        .catch(() => localStorage.removeItem('token'))
+        .catch(() => {
+          localStorage.removeItem('token');
+          delete axios.defaults.headers.common['x-auth-token'];
+        })
         .finally(() => setLoading(false));
     } else {
       setLoading(false);
