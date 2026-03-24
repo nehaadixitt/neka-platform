@@ -22,7 +22,10 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // Database connection
 mongoose.connect(process.env.MONGODB_URI)
   .then(() => console.log('MongoDB connected'))
-  .catch(err => console.log(err));
+  .catch(err => console.error('MongoDB connection error:', err));
+
+console.log('JWT_SECRET exists:', !!process.env.JWT_SECRET);
+console.log('MONGODB_URI exists:', !!process.env.MONGODB_URI);
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
