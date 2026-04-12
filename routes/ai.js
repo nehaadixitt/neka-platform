@@ -3,244 +3,343 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const auth = require('../middleware/auth');
+const Groq = require('groq-sdk');
 
 const router = express.Router();
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-// Configure multer for script uploads
+// --- MULTER SETUP ---
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const uploadDir = 'uploads/';
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
+    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
     cb(null, uploadDir);
   },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + '-' + file.originalname);
-  }
+  filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
 });
 
 const upload = multer({
   storage,
+  limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    const allowedTypes = ['.txt', '.pdf'];
+    const allowed = ['.txt', '.pdf', '.doc', '.docx'];
     const ext = path.extname(file.originalname).toLowerCase();
-    if (allowedTypes.includes(ext)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only .txt and .pdf files are supported'));
-    }
+    allowed.includes(ext) ? cb(null, true) : cb(new Error('Only .txt, .pdf, .doc, .docx files are supported'));
   }
 });
 
-function analyzeScript(content) {
+// --- FILE PARSER ---
+async function extractText(filePath, ext) {
+  if (ext === '.txt') {
+    return fs.readFileSync(filePath, 'utf8');
+  }
+  if (ext === '.pdf') {
+    const pdfParse = require('pdf-parse');
+    const buffer = fs.readFileSync(filePath);
+    const data = await pdfParse(buffer);
+    return data.text;
+  }
+  if (ext === '.doc' || ext === '.docx') {
+    const mammoth = require('mammoth');
+    const result = await mammoth.extractRawText({ path: filePath });
+    return result.value;
+  }
+  throw new Error('Unsupported file type');
+}
+
+// --- DETERMINISTIC ANALYSIS ---
+function runDeterministicAnalysis(content) {
   const lines = content.split('\n');
   const totalWords = content.split(/\s+/).filter(w => w.length > 0).length;
-  const pageCount = lines.length / 55;
+  const pageCount = Math.max(1, lines.length / 55);
 
-  // --- FORMAT SCORE (30%) ---
-  const properHeadings = (content.match(/^(INT\.|EXT\.)/gm) || []).length;
-  const improperHeadings = (content.match(/^(int\.|ext\.|Interior|Exterior)/gm) || []).length;
-  const characterCues = lines.filter(l => /^\s{10,30}[A-Z\s]+$/.test(l.rstrip ? l.rstrip() : l)).length;
-  const pastTenseWords = (content.match(/\b(walked|talked|ran|said|went|came|saw|looked)\b/gi) || []).length;
-  const totalFormatChecks = properHeadings + improperHeadings + characterCues + 1;
-  const passedFormatChecks = properHeadings + characterCues + (pastTenseWords < 10 ? 1 : 0);
-  const formatScore = totalFormatChecks > 0 ? (passedFormatChecks / totalFormatChecks) * 100 : 0;
-  const formatIssues = [];
-  if (improperHeadings > 0) formatIssues.push(`${improperHeadings} improperly formatted scene headings`);
-  if (pastTenseWords >= 10) formatIssues.push(`${pastTenseWords} potential past-tense verbs (use present tense)`);
+  // Sluglines / scene headings
+  const sluglineRegex = /^(INT\.|EXT\.|INT\/EXT\.|EXT\/INT\.)/i;
+  const properSluglines = lines.filter(l => /^(INT\.|EXT\.|INT\/EXT\.|EXT\/INT\.)/.test(l.trim()));
+  const improperSluglines = lines.filter(l => sluglineRegex.test(l.trim()) && !/^(INT\.|EXT\.|INT\/EXT\.|EXT\/INT\.)/.test(l.trim()));
+  const sceneCount = properSluglines.length;
 
-  // --- GRAMMAR SCORE (20%) ---
-  const doubleSpaces = (content.match(/  +/g) || []).length;
-  const missingPeriods = (content.match(/[a-z]\n[A-Z]/g) || []).length;
-  const commonErrors = ['teh','recieve','occured','seperate','definately'];
-  let spellingErrors = 0;
-  const grammarIssues = [];
-  commonErrors.forEach(e => {
-    const count = (content.match(new RegExp(`\\b${e}\\b`, 'gi')) || []).length;
-    if (count > 0) { spellingErrors += count; grammarIssues.push(`'${e}' appears ${count} time(s)`); }
+  // Unique locations
+  const locationSet = new Set();
+  properSluglines.forEach(line => {
+    const match = line.trim().match(/^(INT\.|EXT\.|INT\/EXT\.|EXT\/INT\.)\s+([^-\n]+)/i);
+    if (match) locationSet.add(match[2].trim().toUpperCase());
   });
-  const totalErrors = doubleSpaces + missingPeriods + spellingErrors;
-  if (doubleSpaces > 0) grammarIssues.unshift(`${doubleSpaces} instances of double spacing`);
-  if (missingPeriods > 0) grammarIssues.unshift(`${missingPeriods} potential missing periods`);
-  const grammarScore = totalWords > 0 ? Math.max(0, ((totalWords - totalErrors) / totalWords) * 100) : 0;
+  const uniqueLocations = locationSet.size;
 
-  // --- DIALOGUE SCORE (20%) ---
-  let dialogueWordCount = 0;
+  // Scene lengths (in pages)
+  const sceneLengths = [];
+  const sceneIndices = [];
+  lines.forEach((line, i) => {
+    if (/^(INT\.|EXT\.|INT\/EXT\.|EXT\/INT\.)/.test(line.trim())) sceneIndices.push(i);
+  });
+  for (let i = 0; i < sceneIndices.length; i++) {
+    const start = sceneIndices[i];
+    const end = sceneIndices[i + 1] || lines.length;
+    const sceneLines = end - start;
+    sceneLengths.push({
+      scene: i + 1,
+      slug: lines[start].trim().substring(0, 50),
+      pages: parseFloat((sceneLines / 55).toFixed(2))
+    });
+  }
+  const pacingRisks = sceneLengths.filter(s => s.pages > 3.5);
+
+  // Dialogue vs action
+  let dialogueWords = 0;
   let readingDialogue = false;
   lines.forEach(line => {
-    const isCharName = /^\s{10,30}[A-Z\s]+$/.test(line);
-    const isSceneHead = /^(INT\.|EXT\.)/.test(line.trim());
+    const isCharName = /^\s{10,30}[A-Z][A-Z\s]+$/.test(line);
+    const isSlug = /^(INT\.|EXT\.)/.test(line.trim());
     if (isCharName) { readingDialogue = true; return; }
     if (readingDialogue) {
-      if (line.trim() === '' || isSceneHead || isCharName) { readingDialogue = false; }
-      else { dialogueWordCount += line.split(/\s+/).filter(w => w.length > 0).length; }
+      if (line.trim() === '' || isSlug) { readingDialogue = false; }
+      else { dialogueWords += line.split(/\s+/).filter(w => w.length > 0).length; }
     }
   });
-  const dialogueRatio = totalWords > 0 ? (dialogueWordCount / totalWords) * 100 : 0;
-  const dialogueDeviation = Math.abs(dialogueRatio - 40);
-  const dialogueScore = Math.max(0, 100 - dialogueDeviation * 2);
-  const dialogueFeedback = dialogueRatio < 30 ? 'Action-heavy (less than 30% dialogue)'
-    : dialogueRatio > 50 ? 'Dialogue-heavy (more than 50% dialogue)'
-    : 'Dialogue-to-action ratio is well-balanced (30-50%)';
+  const dialoguePct = totalWords > 0 ? parseFloat(((dialogueWords / totalWords) * 100).toFixed(1)) : 0;
+  const actionPct = parseFloat((100 - dialoguePct).toFixed(1));
+  const dialogueFlag = dialoguePct > 60 ? 'HIGH' : dialoguePct < 40 ? 'LOW' : 'OK';
 
-  // --- SCENE SCORE (20%) ---
-  const sceneCount = properHeadings;
-  const avgSceneLength = sceneCount > 0 ? pageCount / sceneCount : 0;
-  let sceneScore;
-  if (sceneCount >= 40 && sceneCount <= 60) sceneScore = 100;
-  else if (sceneCount < 40) sceneScore = Math.max(0, 100 - (40 - sceneCount) * 2);
-  else sceneScore = Math.max(0, 100 - (sceneCount - 60) * 2);
-  const sceneFeedback = avgSceneLength < 1.0 ? `Scenes are very short (avg ${avgSceneLength.toFixed(1)} pages)`
-    : avgSceneLength > 4.0 ? `Scenes are quite long (avg ${avgSceneLength.toFixed(1)} pages)`
-    : `Scene length is good (avg ${avgSceneLength.toFixed(1)} pages)`;
+  // Cast tracker
+  const characterMap = {};
+  lines.forEach(line => {
+    const match = line.match(/^\s{10,30}([A-Z][A-Z\s]+)$/);
+    if (match) {
+      const name = match[1].trim();
+      if (name.length > 1 && name.length < 30) {
+        characterMap[name] = (characterMap[name] || 0) + 1;
+      }
+    }
+  });
+  const majorRoles = Object.entries(characterMap).filter(([, count]) => count > 10).map(([name]) => name);
+  const minorRoles = Object.entries(characterMap).filter(([, count]) => count <= 5 && count > 0).map(([name]) => name);
 
-  // --- WHITE SPACE SCORE (10%) ---
-  const emptyLines = lines.filter(l => l.trim() === '').length;
-  const whiteSpaceRatio = lines.length > 0 ? (emptyLines / lines.length) * 100 : 0;
-  const whiteSpaceScore = whiteSpaceRatio < 35 ? 60 : whiteSpaceRatio > 65 ? 70 : 100;
-  const whiteSpaceFeedback = whiteSpaceRatio < 35 ? 'Script is dense with text (may be hard to read)'
-    : whiteSpaceRatio > 65 ? 'Script has too much white space'
-    : 'White space is well-balanced';
+  // Formatting checks
+  const formattingFlags = [];
+  if (improperSluglines.length > 0) formattingFlags.push(`${improperSluglines.length} improperly formatted sluglines`);
+  const doubleSpaces = (content.match(/  +/g) || []).length;
+  if (doubleSpaces > 5) formattingFlags.push(`${doubleSpaces} instances of double spacing`);
+  const pastTense = (content.match(/\b(walked|talked|ran|said|went|came|saw|looked|turned|moved)\b/gi) || []).length;
+  if (pastTense > 15) formattingFlags.push(`${pastTense} past-tense verbs found (scripts use present tense)`);
+  const commonMisspellings = ['teh', 'recieve', 'occured', 'seperate', 'definately', 'wierd', 'untill'];
+  commonMisspellings.forEach(w => {
+    const count = (content.match(new RegExp(`\\b${w}\\b`, 'gi')) || []).length;
+    if (count > 0) formattingFlags.push(`Misspelling: '${w}' found ${count} time(s)`);
+  });
 
-  // --- FINAL WEIGHTED SCORE ---
-  const overallScore = formatScore * 0.30 + grammarScore * 0.20 + dialogueScore * 0.20 + sceneScore * 0.20 + whiteSpaceScore * 0.10;
+  // Professionalism score (25%)
+  const formatPenalty = Math.min(100, improperSluglines.length * 5 + doubleSpaces * 0.5 + pastTense * 0.3);
+  const professionalismScore = Math.max(0, 100 - formatPenalty);
+
+  // Production feasibility score (20%)
+  const locationScore = uniqueLocations <= 10 ? 100 : uniqueLocations <= 20 ? 75 : uniqueLocations <= 35 ? 50 : 25;
+  const castScore = majorRoles.length <= 5 ? 100 : majorRoles.length <= 10 ? 75 : majorRoles.length <= 15 ? 50 : 25;
+  const dialogueScore = dialogueFlag === 'OK' ? 100 : 60;
+  const productionScore = (locationScore + castScore + dialogueScore) / 3;
+
+  // Indie scale (0 = cheap indie, 100 = blockbuster)
+  const indieScale = Math.min(100, Math.round((uniqueLocations * 2) + (majorRoles.length * 3)));
 
   return {
-    overallScore: overallScore.toFixed(1),
-    formatScore: formatScore.toFixed(1),
-    grammarScore: grammarScore.toFixed(1),
-    dialogueScore: dialogueScore.toFixed(1),
-    sceneScore: sceneScore.toFixed(1),
-    whiteSpaceScore: whiteSpaceScore.toFixed(1),
-    pageCount: Math.ceil(pageCount),
+    pageCount: Math.round(pageCount),
+    totalWords,
     sceneCount,
-    wordCount: totalWords,
-    dialogueRatio: dialogueRatio.toFixed(1),
-    avgSceneLength: avgSceneLength.toFixed(1),
-    whiteSpaceRatio: whiteSpaceRatio.toFixed(1),
-    formatIssues,
-    grammarIssues,
-    dialogueFeedback,
-    sceneFeedback,
-    whiteSpaceFeedback
+    uniqueLocations,
+    sceneLengths,
+    pacingRisks,
+    dialoguePct,
+    actionPct,
+    dialogueFlag,
+    majorRoles,
+    minorRoles,
+    formattingFlags,
+    professionalismScore: parseFloat(professionalismScore.toFixed(1)),
+    productionScore: parseFloat(productionScore.toFixed(1)),
+    indieScale,
+    characterMap
   };
 }
 
-// AI Analysis endpoint
+// --- GROQ NARRATIVE ANALYSIS ---
+async function runGroqAnalysis(content, deterministicData) {
+  const { pageCount, sceneCount, majorRoles } = deterministicData;
+
+  // Only send first 10 pages, middle 5 pages, last 10 pages to save tokens
+  const lines = content.split('\n');
+  const totalLines = lines.length;
+  const firstChunk = lines.slice(0, Math.min(550, totalLines)).join('\n');
+  const midStart = Math.floor(totalLines / 2) - 137;
+  const midChunk = lines.slice(Math.max(0, midStart), midStart + 275).join('\n');
+  const lastChunk = lines.slice(Math.max(0, totalLines - 550)).join('\n');
+
+  const top3Characters = Object.entries(deterministicData.characterMap)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([name]) => name);
+
+  const prompt = `You are a professional Hollywood script analyst. Analyze this screenplay and return ONLY a valid JSON object with no extra text, no markdown, no code blocks.
+
+Script stats: ${pageCount} pages, ${sceneCount} scenes, major characters: ${top3Characters.join(', ')}.
+
+FIRST 10 PAGES:
+${firstChunk}
+
+MIDPOINT PAGES:
+${midChunk}
+
+LAST 10 PAGES:
+${lastChunk}
+
+Return this exact JSON structure:
+{
+  "structuralBeats": {
+    "incitingIncident": { "page": <number or null>, "description": "<one sentence>", "onTarget": <true/false> },
+    "midpoint": { "page": <number or null>, "description": "<one sentence>", "onTarget": <true/false> },
+    "climax": { "page": <number or null>, "description": "<one sentence>", "onTarget": <true/false> }
+  },
+  "characterVoices": [
+    { "name": "<character name>", "score": <0-100>, "traits": "<2-3 word description>" }
+  ],
+  "emotionalArc": {
+    "openingSentiment": <-100 to 100>,
+    "closingSentiment": <-100 to 100>,
+    "arcShift": "<one sentence describing the change>"
+  },
+  "narrativeScore": <0-100>,
+  "characterDialogueScore": <0-100>,
+  "narrativeFeedback": "<2-3 sentences of overall feedback>"
+}
+
+Rules:
+- incitingIncident onTarget = true if page is between 10-15
+- midpoint onTarget = true if page is between 55-65
+- climax onTarget = true if page is between 85-105
+- characterVoices: include top 3 characters only
+- sentiment: negative = dark/sad, positive = hopeful/triumphant`;
+
+  const response = await groq.chat.completions.create({
+    model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.3,
+    max_tokens: 1000
+  });
+
+  const raw = response.choices[0].message.content.trim();
+
+  // Strip markdown code blocks if present
+  const cleaned = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim();
+  return JSON.parse(cleaned);
+}
+
+// --- MAIN ENDPOINT ---
 router.post('/analyze-script', auth, upload.single('script'), async (req, res) => {
-  console.log('AI Analysis started');
-  
+  console.log('Analysis started');
+  const scriptPath = req.file ? path.resolve(req.file.path) : null;
+
   try {
-    if (!req.file) {
-      console.log('No file uploaded');
-      return res.status(400).json({ msg: 'No script file uploaded' });
-    }
+    if (!req.file) return res.status(400).json({ msg: 'No script file uploaded' });
 
-    console.log('File uploaded:', req.file.originalname, 'Size:', req.file.size);
-    const scriptPath = path.resolve(req.file.path);
     const ext = path.extname(req.file.originalname).toLowerCase();
-    
-    let content = '';
-    
-    if (ext === '.txt') {
-      console.log('Reading .txt file');
-      content = fs.readFileSync(scriptPath, 'utf8');
-    } else if (ext === '.pdf') {
-      console.log('Processing .pdf file');
-      try {
-        // Try to use pdf-parse if available
-        const pdfParse = require('pdf-parse');
-        const dataBuffer = fs.readFileSync(scriptPath);
-        const pdfData = await pdfParse(dataBuffer);
-        content = pdfData.text;
-        
-        if (!content || content.trim().length < 10) {
-          throw new Error('PDF contains no readable text');
-        }
-        
-      } catch (pdfError) {
-        console.log('PDF parsing failed, providing mock analysis:', pdfError.message);
-        
-        // Provide a professional mock analysis for PDF files
-        const mockAnalysis = {
-          overallScore: '78.5',
-          formatScore: '82.0',
-          grammarScore: '75.0',
-          dialogueScore: '80.0',
-          sceneScore: '77.0',
-          readabilityScore: '78.0',
-          pageCount: Math.floor(req.file.size / 2000) + 10, // Estimate based on file size
-          sceneCount: Math.floor(Math.random() * 20) + 15,
-          wordCount: Math.floor(req.file.size / 6) + 500,
-          dialogueRatio: '42.3'
-        };
-        
-        // Clean up uploaded file
-        fs.unlinkSync(scriptPath);
-        
-        return res.json({
-          success: true,
-          analysis: {
-            overallScore: `${mockAnalysis.overallScore}/100`,
-            tier1Results: `Format: ${mockAnalysis.formatScore}/100\nGrammar: ${mockAnalysis.grammarScore}/100\nDialogue: ${mockAnalysis.dialogueScore}/100\nScenes: ${mockAnalysis.sceneScore}/100\nReadability: ${mockAnalysis.readabilityScore}/100`,
-            summary: `PDF Script Analysis Complete!\n\nYour ${mockAnalysis.pageCount}-page PDF script shows strong professional formatting with ${mockAnalysis.sceneCount} well-structured scenes. The dialogue ratio of ${mockAnalysis.dialogueRatio}% indicates good balance between action and character development. Consider refining scene transitions and character voice consistency for enhanced impact.\n\nNote: For detailed text analysis, please convert to .txt format.`,
-            downloadMessage: 'PDF analysis complete! For more detailed analysis, upload as .txt file.',
-            pageCount: mockAnalysis.pageCount,
-            sceneCount: mockAnalysis.sceneCount
-          }
-        });
-      }
-    }
-    
-    console.log('Content extracted, length:', content.length);
-    
-    if (!content || content.trim().length === 0) {
-      throw new Error('No readable content found in file');
-    }
-    
-    // Analyze the script
-    console.log('Starting analysis');
-    const analysis = analyzeScript(content);
-    console.log('Analysis complete:', analysis);
-    
-    // Clean up uploaded file
-    fs.unlinkSync(scriptPath);
-    
-    const formatIssueText = analysis.formatIssues.length > 0 ? analysis.formatIssues.join(', ') : 'No issues found';
-    const grammarIssueText = analysis.grammarIssues.length > 0 ? analysis.grammarIssues.join(', ') : 'No issues found';
+    console.log('Parsing file:', req.file.originalname);
 
-    res.json({
-      success: true,
-      analysis: {
-        overallScore: `${analysis.overallScore}/100`,
-        tier1Results:
-          `Format (30%):     ${analysis.formatScore}/100  — ${formatIssueText}\n` +
-          `Grammar (20%):    ${analysis.grammarScore}/100  — ${grammarIssueText}\n` +
-          `Dialogue (20%):   ${analysis.dialogueScore}/100  — ${analysis.dialogueFeedback} (${analysis.dialogueRatio}%)\n` +
-          `Scenes (20%):     ${analysis.sceneScore}/100  — ${analysis.sceneFeedback}\n` +
-          `White Space (10%):${analysis.whiteSpaceScore}/100  — ${analysis.whiteSpaceFeedback} (${analysis.whiteSpaceRatio}%)`,
-        summary: `Script Analysis Complete!\n\nPages: ${analysis.pageCount} | Scenes: ${analysis.sceneCount} | Words: ${analysis.wordCount}\nDialogue ratio: ${analysis.dialogueRatio}% | Avg scene length: ${analysis.avgSceneLength} pages`,
-        downloadMessage: 'Analysis complete! Review the detailed breakdown above.',
-        pageCount: analysis.pageCount,
-        sceneCount: analysis.sceneCount
-      }
-    });
-    
-  } catch (error) {
-    console.error('AI Analysis Error:', error.message);
-    console.error('Stack trace:', error.stack);
-    
-    // Clean up file if it exists
-    if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
+    let content = '';
+    try {
+      content = await extractText(scriptPath, ext);
+    } catch (parseErr) {
+      console.error('File parse error:', parseErr.message);
+      return res.status(400).json({ msg: `Could not read file: ${parseErr.message}` });
     }
-    
-    res.status(500).json({ 
-      msg: 'Analysis failed', 
-      error: error.message,
-      details: 'Check server logs for more information'
-    });
+
+    if (!content || content.trim().length < 100) {
+      return res.status(400).json({ msg: 'File appears empty or too short to analyze' });
+    }
+
+    console.log('Running deterministic analysis...');
+    const det = runDeterministicAnalysis(content);
+
+    console.log('Running Groq narrative analysis...');
+    let groqData = null;
+    try {
+      groqData = await runGroqAnalysis(content, det);
+    } catch (groqErr) {
+      console.error('Groq error:', groqErr.message);
+      // Fallback if Groq fails
+      groqData = {
+        structuralBeats: {
+          incitingIncident: { page: null, description: 'Could not determine', onTarget: false },
+          midpoint: { page: null, description: 'Could not determine', onTarget: false },
+          climax: { page: null, description: 'Could not determine', onTarget: false }
+        },
+        characterVoices: det.majorRoles.slice(0, 3).map(name => ({ name, score: 50, traits: 'Not analyzed' })),
+        emotionalArc: { openingSentiment: 0, closingSentiment: 0, arcShift: 'Could not determine' },
+        narrativeScore: 50,
+        characterDialogueScore: 50,
+        narrativeFeedback: 'AI narrative analysis unavailable. Deterministic metrics are accurate.'
+      };
+    }
+
+    // --- FINAL WEIGHTED SCORE ---
+    const professionalismScore = det.professionalismScore;   // 25%
+    const narrativeScore = groqData.narrativeScore;           // 35%
+    const characterScore = groqData.characterDialogueScore;   // 20%
+    const productionScore = det.productionScore;              // 20%
+
+    const scriptHealthScore = parseFloat((
+      professionalismScore * 0.25 +
+      narrativeScore * 0.35 +
+      characterScore * 0.20 +
+      productionScore * 0.20
+    ).toFixed(1));
+
+    // --- STRUCTURED JSON RESPONSE ---
+    const result = {
+      success: true,
+      scriptHealthScore,
+      scoreBreakdown: {
+        professionalism: { score: professionalismScore, weight: 25 },
+        narrativeStructure: { score: narrativeScore, weight: 35 },
+        characterDialogue: { score: characterScore, weight: 20 },
+        productionFeasibility: { score: productionScore, weight: 20 }
+      },
+      structuralBeats: groqData.structuralBeats,
+      characterVoices: groqData.characterVoices,
+      emotionalArc: groqData.emotionalArc,
+      pacingData: {
+        sceneLengths: det.sceneLengths,
+        pacingRisks: det.pacingRisks
+      },
+      production: {
+        uniqueLocations: det.uniqueLocations,
+        majorRoles: det.majorRoles,
+        minorRoles: det.minorRoles,
+        majorRoleCount: det.majorRoles.length,
+        minorRoleCount: det.minorRoles.length,
+        dialoguePct: det.dialoguePct,
+        actionPct: det.actionPct,
+        dialogueFlag: det.dialogueFlag,
+        indieScale: det.indieScale
+      },
+      technicalFlags: det.formattingFlags,
+      meta: {
+        pageCount: det.pageCount,
+        wordCount: det.totalWords,
+        sceneCount: det.sceneCount,
+        fileName: req.file.originalname
+      },
+      narrativeFeedback: groqData.narrativeFeedback
+    };
+
+    // Cleanup
+    if (fs.existsSync(scriptPath)) fs.unlinkSync(scriptPath);
+
+    console.log('Analysis complete. Score:', scriptHealthScore);
+    res.json(result);
+
+  } catch (error) {
+    console.error('Analysis error:', error.message);
+    if (scriptPath && fs.existsSync(scriptPath)) fs.unlinkSync(scriptPath);
+    res.status(500).json({ msg: 'Analysis failed', error: error.message });
   }
 });
 
