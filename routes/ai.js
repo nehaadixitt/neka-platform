@@ -28,54 +28,6 @@ const upload = multer({
   }
 });
 
-// --- PDF TEXT NORMALIZER ---
-// PDF extraction loses indentation, so we rebuild screenplay structure
-// by detecting sluglines, character names, and dialogue from raw text
-function normalizePdfText(raw) {
-  const lines = raw.split('\n').map(l => l.trimEnd());
-  const normalized = [];
-
-  const isSlugline = (l) => /^(INT\.|EXT\.|INT\/EXT\.|EXT\/INT\.)/i.test(l.trim());
-  // Character name: all caps, 2-40 chars, no lowercase, not a slugline
-  const isCharName = (l) => {
-    const t = l.trim();
-    return t.length >= 2 && t.length <= 40 &&
-      /^[A-Z][A-Z\s\-\']+$/.test(t) &&
-      !isSlugline(l) &&
-      !/^(FADE|CUT|DISSOLVE|SMASH|TITLE|THE END|CONTINUED|OVER BLACK)/.test(t);
-  };
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const trimmed = line.trim();
-
-    if (!trimmed) { normalized.push(''); continue; }
-
-    if (isSlugline(line)) {
-      // Ensure slugline starts at column 0
-      normalized.push(trimmed.toUpperCase());
-    } else if (isCharName(line)) {
-      // Indent character name to column 22 (standard screenplay)
-      normalized.push(' '.repeat(22) + trimmed.toUpperCase());
-    } else {
-      // Check if previous non-empty line was a character name — if so this is dialogue
-      let prevNonEmpty = '';
-      for (let j = normalized.length - 1; j >= 0; j--) {
-        if (normalized[j].trim()) { prevNonEmpty = normalized[j]; break; }
-      }
-      const prevIsCharName = /^\s{10,}[A-Z][A-Z\s\-\']+$/.test(prevNonEmpty) && !isSlugline(prevNonEmpty);
-      if (prevIsCharName) {
-        // Indent dialogue to column 10
-        normalized.push(' '.repeat(10) + trimmed);
-      } else {
-        normalized.push(trimmed);
-      }
-    }
-  }
-
-  return normalized.join('\n');
-}
-
 // --- FILE PARSER ---
 async function extractText(filePath, ext) {
   if (ext === '.txt') {
@@ -85,7 +37,7 @@ async function extractText(filePath, ext) {
     const pdfParse = require('pdf-parse');
     const buffer = fs.readFileSync(filePath);
     const data = await pdfParse(buffer);
-    return normalizePdfText(data.text);
+    return data.text;
   }
   if (ext === '.doc' || ext === '.docx') {
     const mammoth = require('mammoth');
@@ -334,16 +286,22 @@ router.post('/analyze-script', auth, upload.single('script'), async (req, res) =
     }
 
     // --- FINAL WEIGHTED SCORE ---
-    const professionalismScore = det.professionalismScore;   // 25%
-    const narrativeScore = groqData.narrativeScore;           // 35%
-    const characterScore = groqData.characterDialogueScore;   // 20%
-    const productionScore = det.productionScore;              // 20%
+    // PDF loses formatting so we trust Groq more, deterministic less
+    const isPdf = ext === '.pdf';
+    const weights = isPdf
+      ? { professionalism: 0.10, narrative: 0.45, character: 0.20, production: 0.25 }
+      : { professionalism: 0.25, narrative: 0.35, character: 0.20, production: 0.20 };
+
+    const professionalismScore = det.professionalismScore;
+    const narrativeScore = groqData.narrativeScore;
+    const characterScore = groqData.characterDialogueScore;
+    const productionScore = det.productionScore;
 
     const scriptHealthScore = parseFloat((
-      professionalismScore * 0.25 +
-      narrativeScore * 0.35 +
-      characterScore * 0.20 +
-      productionScore * 0.20
+      professionalismScore * weights.professionalism +
+      narrativeScore * weights.narrative +
+      characterScore * weights.character +
+      productionScore * weights.production
     ).toFixed(1));
 
     // --- STRUCTURED JSON RESPONSE ---
@@ -351,10 +309,10 @@ router.post('/analyze-script', auth, upload.single('script'), async (req, res) =
       success: true,
       scriptHealthScore,
       scoreBreakdown: {
-        professionalism: { score: professionalismScore, weight: 25 },
-        narrativeStructure: { score: narrativeScore, weight: 35 },
-        characterDialogue: { score: characterScore, weight: 20 },
-        productionFeasibility: { score: productionScore, weight: 20 }
+        professionalism: { score: professionalismScore, weight: weights.professionalism * 100 },
+        narrativeStructure: { score: narrativeScore, weight: weights.narrative * 100 },
+        characterDialogue: { score: characterScore, weight: weights.character * 100 },
+        productionFeasibility: { score: productionScore, weight: weights.production * 100 }
       },
       structuralBeats: groqData.structuralBeats,
       characterVoices: groqData.characterVoices,
