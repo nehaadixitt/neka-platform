@@ -130,7 +130,11 @@ function runDeterministicAnalysis(content) {
 
   // Professionalism score (25%)
   // Minimum threshold checks — a proper feature script must have these
-  const formatPenalty = Math.min(100, improperSluglines.length * 5 + doubleSpaces * 0.5 + pastTense * 0.3);
+  const formatPenalty = Math.min(100,
+    improperSluglines.length * 5 +
+    (doubleSpaces > 20 ? (doubleSpaces - 20) * 0.2 : 0) +
+    (pastTense > 30 ? (pastTense - 30) * 0.1 : 0)
+  );
   let professionalismScore = Math.max(0, 100 - formatPenalty);
   if (sceneCount < 5)  professionalismScore = Math.min(professionalismScore, 40);
   else if (sceneCount < 10) professionalismScore = Math.min(professionalismScore, 55);
