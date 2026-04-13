@@ -28,6 +28,54 @@ const upload = multer({
   }
 });
 
+// --- PDF TEXT NORMALIZER ---
+// PDF extraction loses indentation, so we rebuild screenplay structure
+// by detecting sluglines, character names, and dialogue from raw text
+function normalizePdfText(raw) {
+  const lines = raw.split('\n').map(l => l.trimEnd());
+  const normalized = [];
+
+  const isSlugline = (l) => /^(INT\.|EXT\.|INT\/EXT\.|EXT\/INT\.)/i.test(l.trim());
+  // Character name: all caps, 2-40 chars, no lowercase, not a slugline
+  const isCharName = (l) => {
+    const t = l.trim();
+    return t.length >= 2 && t.length <= 40 &&
+      /^[A-Z][A-Z\s\-\']+$/.test(t) &&
+      !isSlugline(l) &&
+      !/^(FADE|CUT|DISSOLVE|SMASH|TITLE|THE END|CONTINUED|OVER BLACK)/.test(t);
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    if (!trimmed) { normalized.push(''); continue; }
+
+    if (isSlugline(line)) {
+      // Ensure slugline starts at column 0
+      normalized.push(trimmed.toUpperCase());
+    } else if (isCharName(line)) {
+      // Indent character name to column 22 (standard screenplay)
+      normalized.push(' '.repeat(22) + trimmed.toUpperCase());
+    } else {
+      // Check if previous non-empty line was a character name — if so this is dialogue
+      let prevNonEmpty = '';
+      for (let j = normalized.length - 1; j >= 0; j--) {
+        if (normalized[j].trim()) { prevNonEmpty = normalized[j]; break; }
+      }
+      const prevIsCharName = /^\s{10,}[A-Z][A-Z\s\-\']+$/.test(prevNonEmpty) && !isSlugline(prevNonEmpty);
+      if (prevIsCharName) {
+        // Indent dialogue to column 10
+        normalized.push(' '.repeat(10) + trimmed);
+      } else {
+        normalized.push(trimmed);
+      }
+    }
+  }
+
+  return normalized.join('\n');
+}
+
 // --- FILE PARSER ---
 async function extractText(filePath, ext) {
   if (ext === '.txt') {
@@ -37,7 +85,7 @@ async function extractText(filePath, ext) {
     const pdfParse = require('pdf-parse');
     const buffer = fs.readFileSync(filePath);
     const data = await pdfParse(buffer);
-    return data.text;
+    return normalizePdfText(data.text);
   }
   if (ext === '.doc' || ext === '.docx') {
     const mammoth = require('mammoth');

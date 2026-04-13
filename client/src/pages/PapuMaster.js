@@ -371,6 +371,7 @@ const PapuMaster = () => {
             <Brain className="mx-auto mb-3 text-red-400" size={44} />
             <h2 className="text-2xl font-bold cinema-header mb-1">Upload Your Script</h2>
             <p className="text-white/60 text-sm">Supports .txt, .pdf, .doc, .docx — max 10MB — 90 to 120 page feature scripts</p>
+            <p className="text-yellow-400/70 text-xs mt-1">⚠ For most accurate results, upload as .docx — PDF formatting may affect deterministic scores</p>
           </div>
           <div className="mb-6">
             <input type="file" id="script-upload" accept=".txt,.pdf,.doc,.docx" onChange={handleFileSelect} className="hidden" />
