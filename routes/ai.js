@@ -48,7 +48,7 @@ async function extractText(filePath, ext) {
 }
 
 // --- DETERMINISTIC ANALYSIS ---
-function runDeterministicAnalysis(content) {
+function runDeterministicAnalysis(content, fileExt) {
   const lines = content.split('\n');
   const totalWords = content.split(/\s+/).filter(w => w.length > 0).length;
   const pageCount = Math.max(1, lines.length / 55);
@@ -138,10 +138,17 @@ function runDeterministicAnalysis(content) {
   let professionalismScore = Math.max(0, 100 - formatPenalty);
   const charCueCount = Object.values(characterMap).reduce((a, b) => a + b, 0);
   console.log(`Professionalism debug: sceneCount=${sceneCount} charCueCount=${charCueCount} dialoguePct=${dialoguePct} doubleSpaces=${doubleSpaces} pastTense=${pastTense} improperSluglines=${improperSluglines.length} penalty=${formatPenalty} baseScore=${professionalismScore}`);
-  if (sceneCount < 5)  professionalismScore = Math.min(professionalismScore, 40);
-  else if (sceneCount < 10) professionalismScore = Math.min(professionalismScore, 55);
-  if (charCueCount < 10) professionalismScore = Math.min(professionalismScore, 50);
-  if (dialoguePct === 0) professionalismScore = Math.min(professionalismScore, 30);
+  // Only apply structural caps for TXT files — DOCX/PDF lose indentation so charCues and dialogue detection are unreliable
+  if (fileExt === '.txt') {
+    if (sceneCount < 5) professionalismScore = Math.min(professionalismScore, 40);
+    else if (sceneCount < 10) professionalismScore = Math.min(professionalismScore, 55);
+    if (charCueCount < 10) professionalismScore = Math.min(professionalismScore, 50);
+    if (dialoguePct === 0) professionalismScore = Math.min(professionalismScore, 30);
+  } else {
+    // For DOCX/PDF only apply scene count cap since sluglines are still detectable
+    if (sceneCount < 5) professionalismScore = Math.min(professionalismScore, 40);
+    else if (sceneCount < 10) professionalismScore = Math.min(professionalismScore, 55);
+  }
   console.log(`Professionalism final: ${professionalismScore}`);
 
   // Production feasibility score (20%)
@@ -274,7 +281,7 @@ router.post('/analyze-script', auth, upload.single('script'), async (req, res) =
     }
 
     console.log('Running deterministic analysis...');
-    const det = runDeterministicAnalysis(content);
+    const det = runDeterministicAnalysis(content, ext);
 
     console.log('Running Groq narrative analysis...');
     let groqData = null;
