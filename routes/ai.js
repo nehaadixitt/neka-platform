@@ -136,11 +136,13 @@ function runDeterministicAnalysis(content) {
     (pastTense > 30 ? (pastTense - 30) * 0.1 : 0)
   );
   let professionalismScore = Math.max(0, 100 - formatPenalty);
+  const charCueCount = Object.values(characterMap).reduce((a, b) => a + b, 0);
+  console.log(`Professionalism debug: sceneCount=${sceneCount} charCueCount=${charCueCount} dialoguePct=${dialoguePct} doubleSpaces=${doubleSpaces} pastTense=${pastTense} improperSluglines=${improperSluglines.length} penalty=${formatPenalty} baseScore=${professionalismScore}`);
   if (sceneCount < 5)  professionalismScore = Math.min(professionalismScore, 40);
   else if (sceneCount < 10) professionalismScore = Math.min(professionalismScore, 55);
-  const charCueCount = Object.values(characterMap).reduce((a, b) => a + b, 0);
   if (charCueCount < 10) professionalismScore = Math.min(professionalismScore, 50);
   if (dialoguePct === 0) professionalismScore = Math.min(professionalismScore, 30);
+  console.log(`Professionalism final: ${professionalismScore}`);
 
   // Production feasibility score (20%)
   const locationScore = uniqueLocations <= 10 ? 100 : uniqueLocations <= 20 ? 75 : uniqueLocations <= 35 ? 50 : 25;
