@@ -227,8 +227,14 @@ Rules:
 
   const raw = response.choices[0].message.content.trim();
 
-  // Strip markdown code blocks if present
-  const cleaned = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim();
+  // Strip markdown code blocks and XML-like wrapper tags if present
+  const cleaned = raw
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/```\s*$/i, '')
+    .replace(/^<[^>]+>\s*/i, '')
+    .replace(/\s*<\/[^>]+>$/i, '')
+    .trim();
   return JSON.parse(cleaned);
 }
 
