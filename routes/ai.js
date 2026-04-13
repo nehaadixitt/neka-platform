@@ -129,8 +129,14 @@ function runDeterministicAnalysis(content) {
   });
 
   // Professionalism score (25%)
+  // Minimum threshold checks — a proper feature script must have these
   const formatPenalty = Math.min(100, improperSluglines.length * 5 + doubleSpaces * 0.5 + pastTense * 0.3);
-  const professionalismScore = Math.max(0, 100 - formatPenalty);
+  let professionalismScore = Math.max(0, 100 - formatPenalty);
+  if (sceneCount < 5)  professionalismScore = Math.min(professionalismScore, 40);
+  else if (sceneCount < 10) professionalismScore = Math.min(professionalismScore, 55);
+  const charCueCount = Object.values(characterMap).reduce((a, b) => a + b, 0);
+  if (charCueCount < 10) professionalismScore = Math.min(professionalismScore, 50);
+  if (dialoguePct === 0) professionalismScore = Math.min(professionalismScore, 30);
 
   // Production feasibility score (20%)
   const locationScore = uniqueLocations <= 10 ? 100 : uniqueLocations <= 20 ? 75 : uniqueLocations <= 35 ? 50 : 25;
@@ -297,12 +303,20 @@ router.post('/analyze-script', auth, upload.single('script'), async (req, res) =
     const characterScore = groqData.characterDialogueScore;
     const productionScore = det.productionScore;
 
-    const scriptHealthScore = parseFloat((
+    let scriptHealthScore = parseFloat((
       professionalismScore * weights.professionalism +
       narrativeScore * weights.narrative +
       characterScore * weights.character +
       productionScore * weights.production
     ).toFixed(1));
+
+    // Completeness cap — incomplete scripts cannot score above a ceiling
+    const pageCount = det.pageCount;
+    if (pageCount < 30)       scriptHealthScore = Math.min(scriptHealthScore, 50);
+    else if (pageCount < 60)  scriptHealthScore = Math.min(scriptHealthScore, 65);
+    else if (pageCount < 90)  scriptHealthScore = Math.min(scriptHealthScore, 80);
+    // 90+ pages: no cap
+    scriptHealthScore = parseFloat(scriptHealthScore.toFixed(1));
 
     // --- STRUCTURED JSON RESPONSE ---
     const result = {
@@ -337,7 +351,8 @@ router.post('/analyze-script', auth, upload.single('script'), async (req, res) =
         pageCount: det.pageCount,
         wordCount: det.totalWords,
         sceneCount: det.sceneCount,
-        fileName: req.file.originalname
+        fileName: req.file.originalname,
+        completenessCap: pageCount < 30 ? 50 : pageCount < 60 ? 65 : pageCount < 90 ? 80 : null
       },
       narrativeFeedback: groqData.narrativeFeedback
     };

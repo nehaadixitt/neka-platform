@@ -511,12 +511,18 @@ const PapuMaster = () => {
           </Card>
 
           {/* Meta */}
-          <div className="flex flex-wrap gap-4 text-sm text-white/40 mb-6">
+          <div className="flex flex-wrap gap-4 text-sm text-white/40 mb-2">
             <span>📄 {result.meta.pageCount} pages</span>
             <span>📝 {result.meta.wordCount.toLocaleString()} words</span>
             <span>🎬 {result.meta.sceneCount} scenes</span>
             <span>📁 {result.meta.fileName}</span>
           </div>
+          {result.meta.completenessCap && (
+            <div className="mb-6 px-4 py-3 rounded-lg border border-yellow-400/40 text-yellow-300 text-sm"
+              style={{ background: 'rgba(245,158,11,0.1)' }}>
+              ⚠ Score capped at {result.meta.completenessCap}/100 — this script is under {result.meta.pageCount < 30 ? '30' : result.meta.pageCount < 60 ? '60' : '90'} pages. A feature film is 90–120 pages.
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex gap-4 justify-center mb-8">
