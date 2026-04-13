@@ -85,31 +85,54 @@ function runDeterministicAnalysis(content, fileExt) {
   }
   const pacingRisks = sceneLengths.filter(s => s.pages > 3.5);
 
-  // Dialogue vs action
+  // Dialogue vs action — use indentation for TXT, character-map-based for DOCX/PDF
   let dialogueWords = 0;
   let readingDialogue = false;
   lines.forEach(line => {
-    const isCharName = /^\s{10,30}[A-Z][A-Z\s]+$/.test(line);
-    const isSlug = /^(INT\.|EXT\.)/.test(line.trim());
+    const trimmed = line.trim();
+    let isCharName = false;
+    if (fileExt === '.txt') {
+      isCharName = /^\s{10,30}[A-Z][A-Z\s]+$/.test(line);
+    } else {
+      isCharName = characterMap.hasOwnProperty(trimmed);
+    }
+    const isSlug = /^(INT\.|EXT\.)/.test(trimmed);
     if (isCharName) { readingDialogue = true; return; }
     if (readingDialogue) {
-      if (line.trim() === '' || isSlug) { readingDialogue = false; }
-      else { dialogueWords += line.split(/\s+/).filter(w => w.length > 0).length; }
+      if (trimmed === '' || isSlug || (fileExt !== '.txt' && characterMap.hasOwnProperty(trimmed))) {
+        readingDialogue = false;
+      } else {
+        dialogueWords += trimmed.split(/\s+/).filter(w => w.length > 0).length;
+      }
     }
   });
   const dialoguePct = totalWords > 0 ? parseFloat(((dialogueWords / totalWords) * 100).toFixed(1)) : 0;
   const actionPct = parseFloat((100 - dialoguePct).toFixed(1));
   const dialogueFlag = dialoguePct > 60 ? 'HIGH' : dialoguePct < 40 ? 'LOW' : 'OK';
 
-  // Cast tracker
+  // Cast tracker — use indentation for TXT, ALL CAPS pattern for DOCX/PDF
   const characterMap = {};
   lines.forEach(line => {
-    const match = line.match(/^\s{10,30}([A-Z][A-Z\s]+)$/);
+    const trimmed = line.trim();
+    let match = null;
+    if (fileExt === '.txt') {
+      match = line.match(/^\s{10,30}([A-Z][A-Z\s]+)$/);
+      if (match) match = [null, match[1]];
+    } else {
+      // For DOCX/PDF: ALL CAPS line, 2-40 chars, not a slugline, not a transition
+      if (
+        trimmed.length >= 2 && trimmed.length <= 40 &&
+        /^[A-Z][A-Z\s\-\']+$/.test(trimmed) &&
+        !/^(INT\.|EXT\.|INT\/EXT\.|EXT\/INT\.)/.test(trimmed) &&
+        !/^(FADE|CUT|DISSOLVE|SMASH|TITLE|THE END|CONTINUED|OVER BLACK|ACT)/.test(trimmed)
+      ) {
+        match = [null, trimmed];
+      }
+    }
     if (match) {
       const name = match[1].trim();
-      if (name.length > 1 && name.length < 30) {
+      if (name.length > 1 && name.length < 30)
         characterMap[name] = (characterMap[name] || 0) + 1;
-      }
     }
   });
   const majorRoles = Object.entries(characterMap).filter(([, count]) => count > 10).map(([name]) => name);
