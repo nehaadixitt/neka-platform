@@ -34,12 +34,10 @@ async function extractText(filePath, ext) {
     return fs.readFileSync(filePath, 'utf8');
   }
   if (ext === '.pdf') {
-    const { PDFParse } = require('pdf-parse');
-    const parser = new PDFParse();
+    const pdfParse = require('pdf-parse');
     const buffer = fs.readFileSync(filePath);
-    const data = await parser.parse(buffer);
-    const text = data.pages.map(p => p.lines.map(l => l.words.map(w => w.text).join(' ')).join('\n')).join('\n');
-    return text;
+    const data = await pdfParse(buffer);
+    return data.text;
   }
   if (ext === '.doc' || ext === '.docx') {
     const mammoth = require('mammoth');
