@@ -53,13 +53,15 @@ function runDeterministicAnalysis(content, fileExt) {
   const totalWords = content.split(/\s+/).filter(w => w.length > 0).length;
   const pageCount = Math.max(1, lines.length / 55);
 
-  // Sluglines / scene headings
-  const sluglineRegex = /^(INT\.|EXT\.|INT\/EXT\.|EXT\/INT\.)/i;
+  // --- SLUGLINES ---
   const properSluglines = lines.filter(l => /^(INT\.|EXT\.|INT\/EXT\.|EXT\/INT\.)/.test(l.trim()));
-  const improperSluglines = lines.filter(l => sluglineRegex.test(l.trim()) && !/^(INT\.|EXT\.|INT\/EXT\.|EXT\/INT\.)/.test(l.trim()));
+  const improperSluglines = lines.filter(l =>
+    /^(INT\.|EXT\.|INT\/EXT\.|EXT\/INT\.)/i.test(l.trim()) &&
+    !/^(INT\.|EXT\.|INT\/EXT\.|EXT\/INT\.)/.test(l.trim())
+  );
   const sceneCount = properSluglines.length;
 
-  // Unique locations
+  // --- UNIQUE LOCATIONS ---
   const locationSet = new Set();
   properSluglines.forEach(line => {
     const match = line.trim().match(/^(INT\.|EXT\.|INT\/EXT\.|EXT\/INT\.)\s+([^-\n]+)/i);
@@ -67,7 +69,7 @@ function runDeterministicAnalysis(content, fileExt) {
   });
   const uniqueLocations = locationSet.size;
 
-  // Scene lengths (in pages)
+  // --- SCENE LENGTHS ---
   const sceneLengths = [];
   const sceneIndices = [];
   lines.forEach((line, i) => {
@@ -76,16 +78,41 @@ function runDeterministicAnalysis(content, fileExt) {
   for (let i = 0; i < sceneIndices.length; i++) {
     const start = sceneIndices[i];
     const end = sceneIndices[i + 1] || lines.length;
-    const sceneLines = end - start;
     sceneLengths.push({
       scene: i + 1,
       slug: lines[start].trim().substring(0, 50),
-      pages: parseFloat((sceneLines / 55).toFixed(2))
+      pages: parseFloat(((end - start) / 55).toFixed(2))
     });
   }
   const pacingRisks = sceneLengths.filter(s => s.pages > 3.5);
 
-  // Dialogue vs action — use indentation for TXT, character-map-based for DOCX/PDF
+  // --- CAST TRACKER (must be before dialogue detection) ---
+  const characterMap = {};
+  lines.forEach(line => {
+    const trimmed = line.trim();
+    let name = null;
+    if (fileExt === '.txt') {
+      const match = line.match(/^\s{10,30}([A-Z][A-Z\s]+)$/);
+      if (match) name = match[1].trim();
+    } else {
+      // DOCX/PDF: detect ALL CAPS lines as character names
+      if (
+        trimmed.length >= 2 && trimmed.length <= 40 &&
+        /^[A-Z][A-Z\s\-\']+$/.test(trimmed) &&
+        !/^(INT\.|EXT\.|INT\/EXT\.|EXT\/INT\.)/.test(trimmed) &&
+        !/^(FADE|CUT|DISSOLVE|SMASH|TITLE|THE END|CONTINUED|OVER BLACK|ACT)/.test(trimmed)
+      ) {
+        name = trimmed;
+      }
+    }
+    if (name && name.length > 1 && name.length < 30) {
+      characterMap[name] = (characterMap[name] || 0) + 1;
+    }
+  });
+  const majorRoles = Object.entries(characterMap).filter(([, c]) => c > 10).map(([n]) => n);
+  const minorRoles = Object.entries(characterMap).filter(([, c]) => c <= 5 && c > 0).map(([n]) => n);
+
+  // --- DIALOGUE VS ACTION (depends on characterMap) ---
   let dialogueWords = 0;
   let readingDialogue = false;
   lines.forEach(line => {
@@ -94,12 +121,12 @@ function runDeterministicAnalysis(content, fileExt) {
     if (fileExt === '.txt') {
       isCharName = /^\s{10,30}[A-Z][A-Z\s]+$/.test(line);
     } else {
-      isCharName = characterMap.hasOwnProperty(trimmed);
+      isCharName = Object.prototype.hasOwnProperty.call(characterMap, trimmed);
     }
     const isSlug = /^(INT\.|EXT\.)/.test(trimmed);
     if (isCharName) { readingDialogue = true; return; }
     if (readingDialogue) {
-      if (trimmed === '' || isSlug || (fileExt !== '.txt' && characterMap.hasOwnProperty(trimmed))) {
+      if (trimmed === '' || isSlug || (!fileExt === '.txt' && Object.prototype.hasOwnProperty.call(characterMap, trimmed))) {
         readingDialogue = false;
       } else {
         dialogueWords += trimmed.split(/\s+/).filter(w => w.length > 0).length;
@@ -110,35 +137,7 @@ function runDeterministicAnalysis(content, fileExt) {
   const actionPct = parseFloat((100 - dialoguePct).toFixed(1));
   const dialogueFlag = dialoguePct > 60 ? 'HIGH' : dialoguePct < 40 ? 'LOW' : 'OK';
 
-  // Cast tracker — use indentation for TXT, ALL CAPS pattern for DOCX/PDF
-  const characterMap = {};
-  lines.forEach(line => {
-    const trimmed = line.trim();
-    let match = null;
-    if (fileExt === '.txt') {
-      match = line.match(/^\s{10,30}([A-Z][A-Z\s]+)$/);
-      if (match) match = [null, match[1]];
-    } else {
-      // For DOCX/PDF: ALL CAPS line, 2-40 chars, not a slugline, not a transition
-      if (
-        trimmed.length >= 2 && trimmed.length <= 40 &&
-        /^[A-Z][A-Z\s\-\']+$/.test(trimmed) &&
-        !/^(INT\.|EXT\.|INT\/EXT\.|EXT\/INT\.)/.test(trimmed) &&
-        !/^(FADE|CUT|DISSOLVE|SMASH|TITLE|THE END|CONTINUED|OVER BLACK|ACT)/.test(trimmed)
-      ) {
-        match = [null, trimmed];
-      }
-    }
-    if (match) {
-      const name = match[1].trim();
-      if (name.length > 1 && name.length < 30)
-        characterMap[name] = (characterMap[name] || 0) + 1;
-    }
-  });
-  const majorRoles = Object.entries(characterMap).filter(([, count]) => count > 10).map(([name]) => name);
-  const minorRoles = Object.entries(characterMap).filter(([, count]) => count <= 5 && count > 0).map(([name]) => name);
-
-  // Formatting checks
+  // --- FORMATTING FLAGS ---
   const formattingFlags = [];
   if (improperSluglines.length > 0) formattingFlags.push(`${improperSluglines.length} improperly formatted sluglines`);
   const doubleSpaces = (content.match(/  +/g) || []).length;
@@ -151,8 +150,7 @@ function runDeterministicAnalysis(content, fileExt) {
     if (count > 0) formattingFlags.push(`Misspelling: '${w}' found ${count} time(s)`);
   });
 
-  // Professionalism score (25%)
-  // Minimum threshold checks — a proper feature script must have these
+  // --- PROFESSIONALISM SCORE ---
   const formatPenalty = Math.min(100,
     improperSluglines.length * 5 +
     (doubleSpaces > 20 ? (doubleSpaces - 20) * 0.2 : 0) +
@@ -160,27 +158,25 @@ function runDeterministicAnalysis(content, fileExt) {
   );
   let professionalismScore = Math.max(0, 100 - formatPenalty);
   const charCueCount = Object.values(characterMap).reduce((a, b) => a + b, 0);
-  console.log(`Professionalism debug: sceneCount=${sceneCount} charCueCount=${charCueCount} dialoguePct=${dialoguePct} doubleSpaces=${doubleSpaces} pastTense=${pastTense} improperSluglines=${improperSluglines.length} penalty=${formatPenalty} baseScore=${professionalismScore}`);
-  // Only apply structural caps for TXT files — DOCX/PDF lose indentation so charCues and dialogue detection are unreliable
+  console.log(`Prof debug: scenes=${sceneCount} charCues=${charCueCount} dialogue=${dialoguePct}% penalty=${formatPenalty} base=${professionalismScore}`);
   if (fileExt === '.txt') {
     if (sceneCount < 5) professionalismScore = Math.min(professionalismScore, 40);
     else if (sceneCount < 10) professionalismScore = Math.min(professionalismScore, 55);
     if (charCueCount < 10) professionalismScore = Math.min(professionalismScore, 50);
     if (dialoguePct === 0) professionalismScore = Math.min(professionalismScore, 30);
   } else {
-    // For DOCX/PDF only apply scene count cap since sluglines are still detectable
     if (sceneCount < 5) professionalismScore = Math.min(professionalismScore, 40);
     else if (sceneCount < 10) professionalismScore = Math.min(professionalismScore, 55);
   }
-  console.log(`Professionalism final: ${professionalismScore}`);
+  console.log(`Prof final: ${professionalismScore}`);
 
-  // Production feasibility score (20%)
+  // --- PRODUCTION FEASIBILITY SCORE ---
   const locationScore = uniqueLocations <= 10 ? 100 : uniqueLocations <= 20 ? 75 : uniqueLocations <= 35 ? 50 : 25;
   const castScore = majorRoles.length <= 5 ? 100 : majorRoles.length <= 10 ? 75 : majorRoles.length <= 15 ? 50 : 25;
   const dialogueScore = dialogueFlag === 'OK' ? 100 : 60;
   const productionScore = (locationScore + castScore + dialogueScore) / 3;
 
-  // Indie scale (0 = cheap indie, 100 = blockbuster)
+  // --- INDIE SCALE ---
   const indieScale = Math.min(100, Math.round((uniqueLocations * 2) + (majorRoles.length * 3)));
 
   return {
@@ -205,9 +201,7 @@ function runDeterministicAnalysis(content, fileExt) {
 
 // --- GROQ NARRATIVE ANALYSIS ---
 async function runGroqAnalysis(content, deterministicData) {
-  const { pageCount, sceneCount, majorRoles } = deterministicData;
-
-  // Only send first 10 pages, middle 5 pages, last 10 pages to save tokens
+  const { pageCount, sceneCount } = deterministicData;
   const lines = content.split('\n');
   const totalLines = lines.length;
   const firstChunk = lines.slice(0, Math.min(550, totalLines)).join('\n');
@@ -268,14 +262,9 @@ Rules:
   });
 
   const raw = response.choices[0].message.content.trim();
-
-  // Strip markdown code blocks and XML-like wrapper tags if present
   const cleaned = raw
-    .replace(/^```json\s*/i, '')
-    .replace(/^```\s*/i, '')
-    .replace(/```\s*$/i, '')
-    .replace(/^<[^>]+>\s*/i, '')
-    .replace(/\s*<\/[^>]+>$/i, '')
+    .replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '')
+    .replace(/^<[^>]+>\s*/i, '').replace(/\s*<\/[^>]+>$/i, '')
     .trim();
   return JSON.parse(cleaned);
 }
@@ -312,7 +301,6 @@ router.post('/analyze-script', auth, upload.single('script'), async (req, res) =
       groqData = await runGroqAnalysis(content, det);
     } catch (groqErr) {
       console.error('Groq error:', groqErr.message);
-      // Fallback if Groq fails
       groqData = {
         structuralBeats: {
           incitingIncident: { page: null, description: 'Could not determine', onTarget: false },
@@ -327,50 +315,39 @@ router.post('/analyze-script', auth, upload.single('script'), async (req, res) =
       };
     }
 
-    // --- FINAL WEIGHTED SCORE ---
-    // PDF loses formatting so we trust Groq more, deterministic less
+    // --- WEIGHTED SCORE ---
     const isPdf = ext === '.pdf';
     const weights = isPdf
       ? { professionalism: 0.10, narrative: 0.45, character: 0.20, production: 0.25 }
       : { professionalism: 0.25, narrative: 0.35, character: 0.20, production: 0.20 };
 
-    const professionalismScore = det.professionalismScore;
-    const narrativeScore = groqData.narrativeScore;
-    const characterScore = groqData.characterDialogueScore;
-    const productionScore = det.productionScore;
-
     let scriptHealthScore = parseFloat((
-      professionalismScore * weights.professionalism +
-      narrativeScore * weights.narrative +
-      characterScore * weights.character +
-      productionScore * weights.production
+      det.professionalismScore * weights.professionalism +
+      groqData.narrativeScore * weights.narrative +
+      groqData.characterDialogueScore * weights.character +
+      det.productionScore * weights.production
     ).toFixed(1));
 
-    // Completeness cap — incomplete scripts cannot score above a ceiling
+    // Completeness cap
     const pageCount = det.pageCount;
-    if (pageCount < 30)       scriptHealthScore = Math.min(scriptHealthScore, 50);
-    else if (pageCount < 60)  scriptHealthScore = Math.min(scriptHealthScore, 65);
-    else if (pageCount < 90)  scriptHealthScore = Math.min(scriptHealthScore, 80);
-    // 90+ pages: no cap
+    if (pageCount < 30) scriptHealthScore = Math.min(scriptHealthScore, 50);
+    else if (pageCount < 60) scriptHealthScore = Math.min(scriptHealthScore, 65);
+    else if (pageCount < 90) scriptHealthScore = Math.min(scriptHealthScore, 80);
     scriptHealthScore = parseFloat(scriptHealthScore.toFixed(1));
 
-    // --- STRUCTURED JSON RESPONSE ---
     const result = {
       success: true,
       scriptHealthScore,
       scoreBreakdown: {
-        professionalism: { score: professionalismScore, weight: weights.professionalism * 100 },
-        narrativeStructure: { score: narrativeScore, weight: weights.narrative * 100 },
-        characterDialogue: { score: characterScore, weight: weights.character * 100 },
-        productionFeasibility: { score: productionScore, weight: weights.production * 100 }
+        professionalism: { score: det.professionalismScore, weight: weights.professionalism * 100 },
+        narrativeStructure: { score: groqData.narrativeScore, weight: weights.narrative * 100 },
+        characterDialogue: { score: groqData.characterDialogueScore, weight: weights.character * 100 },
+        productionFeasibility: { score: det.productionScore, weight: weights.production * 100 }
       },
       structuralBeats: groqData.structuralBeats,
       characterVoices: groqData.characterVoices,
       emotionalArc: groqData.emotionalArc,
-      pacingData: {
-        sceneLengths: det.sceneLengths,
-        pacingRisks: det.pacingRisks
-      },
+      pacingData: { sceneLengths: det.sceneLengths, pacingRisks: det.pacingRisks },
       production: {
         uniqueLocations: det.uniqueLocations,
         majorRoles: det.majorRoles,
@@ -393,9 +370,7 @@ router.post('/analyze-script', auth, upload.single('script'), async (req, res) =
       narrativeFeedback: groqData.narrativeFeedback
     };
 
-    // Cleanup
     if (fs.existsSync(scriptPath)) fs.unlinkSync(scriptPath);
-
     console.log('Analysis complete. Score:', scriptHealthScore);
     res.json(result);
 
