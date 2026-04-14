@@ -115,6 +115,8 @@ function runDeterministicAnalysis(content, fileExt) {
   // --- DIALOGUE VS ACTION (depends on characterMap) ---
   let dialogueWords = 0;
   let readingDialogue = false;
+  let dialogueLineCount = 0;
+  let charNameHits = 0;
   lines.forEach(line => {
     const trimmed = line.trim();
     let isCharName = false;
@@ -124,15 +126,17 @@ function runDeterministicAnalysis(content, fileExt) {
       isCharName = Object.prototype.hasOwnProperty.call(characterMap, trimmed);
     }
     const isSlug = /^(INT\.|EXT\.)/.test(trimmed);
-    if (isCharName) { readingDialogue = true; return; }
+    if (isCharName) { readingDialogue = true; charNameHits++; return; }
     if (readingDialogue) {
       if (trimmed === '' || isSlug || (fileExt !== '.txt' && Object.prototype.hasOwnProperty.call(characterMap, trimmed))) {
         readingDialogue = false;
       } else {
         dialogueWords += trimmed.split(/\s+/).filter(w => w.length > 0).length;
+        dialogueLineCount++;
       }
     }
   });
+  console.log(`Dialogue debug: charNameHits=${charNameHits} dialogueLines=${dialogueLineCount} dialogueWords=${dialogueWords}`);
   const dialoguePct = totalWords > 0 ? parseFloat(((dialogueWords / totalWords) * 100).toFixed(1)) : 0;
   const actionPct = parseFloat((100 - dialoguePct).toFixed(1));
   const dialogueFlag = dialoguePct > 60 ? 'HIGH' : dialoguePct < 40 ? 'LOW' : 'OK';
