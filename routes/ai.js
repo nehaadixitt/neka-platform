@@ -141,9 +141,9 @@ function runDeterministicAnalysis(content, fileExt) {
     }
   });
   console.log(`Dialogue debug: charNameHits=${charNameHits} dialogueLines=${dialogueLineCount} dialogueWords=${dialogueWords}`);
-  const dialoguePct = totalWords > 0 ? parseFloat(((dialogueWords / totalWords) * 100).toFixed(1)) : 0;
-  const actionPct = parseFloat((100 - dialoguePct).toFixed(1));
-  const dialogueFlag = dialoguePct > 60 ? 'HIGH' : dialoguePct < 40 ? 'LOW' : 'OK';
+  const dialoguePct = fileExt === '.txt' && totalWords > 0 ? parseFloat(((dialogueWords / totalWords) * 100).toFixed(1)) : null;
+  const actionPct = dialoguePct !== null ? parseFloat((100 - dialoguePct).toFixed(1)) : null;
+  const dialogueFlag = dialoguePct === null ? 'UNKNOWN' : dialoguePct > 60 ? 'HIGH' : dialoguePct < 40 ? 'LOW' : 'OK';
 
   // --- FORMATTING FLAGS ---
   const formattingFlags = [];
@@ -252,6 +252,7 @@ Return this exact JSON structure:
   },
   "narrativeScore": <0-100>,
   "characterDialogueScore": <0-100>,
+  "dialoguePct": <0-100>,
   "narrativeFeedback": "<2-3 sentences of overall feedback>"
 }
 
@@ -260,7 +261,8 @@ Rules:
 - midpoint onTarget = true if page is between 55-65
 - climax onTarget = true if page is between 85-105
 - characterVoices: include top 3 characters only
-- sentiment: negative = dark/sad, positive = hopeful/triumphant`;
+- sentiment: negative = dark/sad, positive = hopeful/triumphant
+- dialoguePct: estimate what percentage of the script is dialogue vs action description (0-100)`;
 
   const response = await groq.chat.completions.create({
     model: 'meta-llama/llama-4-scout-17b-16e-instruct',
@@ -363,9 +365,9 @@ router.post('/analyze-script', auth, upload.single('script'), async (req, res) =
         minorRoles: det.minorRoles,
         majorRoleCount: det.majorRoles.length,
         minorRoleCount: det.minorRoles.length,
-        dialoguePct: det.dialoguePct,
-        actionPct: det.actionPct,
-        dialogueFlag: det.dialogueFlag,
+        dialoguePct: ext === '.txt' ? det.dialoguePct : (groqData.dialoguePct ?? null),
+        actionPct: ext === '.txt' ? det.actionPct : (groqData.dialoguePct != null ? parseFloat((100 - groqData.dialoguePct).toFixed(1)) : null),
+        dialogueFlag: ext === '.txt' ? det.dialogueFlag : (groqData.dialoguePct == null ? 'UNKNOWN' : groqData.dialoguePct > 60 ? 'HIGH' : groqData.dialoguePct < 40 ? 'LOW' : 'OK'),
         indieScale: det.indieScale
       },
       technicalFlags: det.formattingFlags,

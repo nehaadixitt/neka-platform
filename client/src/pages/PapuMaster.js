@@ -481,10 +481,19 @@ const PapuMaster = () => {
               </div>
               <div className="text-center p-4 rounded-lg" style={{ background: 'rgba(255,255,255,0.05)' }}>
                 <MessageSquare className="mx-auto mb-2 text-red-400" size={24} />
-                <div className="text-2xl font-bold text-white">{result.production.dialoguePct}%</div>
-                <div className="text-white/50 text-xs">Dialogue vs {result.production.actionPct}% Action</div>
-                {result.production.dialogueFlag !== 'OK' && (
-                  <span className="text-xs text-yellow-400">⚠ {result.production.dialogueFlag === 'HIGH' ? 'Too much dialogue' : 'Too little dialogue'}</span>
+                {result.production.dialoguePct !== null ? (
+                  <>
+                    <div className="text-2xl font-bold text-white">{result.production.dialoguePct}%</div>
+                    <div className="text-white/50 text-xs">Dialogue vs {result.production.actionPct}% Action</div>
+                    {result.production.dialogueFlag !== 'OK' && (
+                      <span className="text-xs text-yellow-400">⚠ {result.production.dialogueFlag === 'HIGH' ? 'Too much dialogue' : 'Too little dialogue'}</span>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <div className="text-lg font-bold text-white/40">N/A</div>
+                    <div className="text-white/30 text-xs">Dialogue ratio requires .txt format</div>
+                  </>
                 )}
               </div>
             </div>
