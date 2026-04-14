@@ -126,7 +126,7 @@ function runDeterministicAnalysis(content, fileExt) {
     const isSlug = /^(INT\.|EXT\.)/.test(trimmed);
     if (isCharName) { readingDialogue = true; return; }
     if (readingDialogue) {
-      if (trimmed === '' || isSlug || (!fileExt === '.txt' && Object.prototype.hasOwnProperty.call(characterMap, trimmed))) {
+      if (trimmed === '' || isSlug || (fileExt !== '.txt' && Object.prototype.hasOwnProperty.call(characterMap, trimmed))) {
         readingDialogue = false;
       } else {
         dialogueWords += trimmed.split(/\s+/).filter(w => w.length > 0).length;
