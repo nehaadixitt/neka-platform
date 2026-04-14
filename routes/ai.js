@@ -301,6 +301,7 @@ router.post('/analyze-script', auth, upload.single('script'), async (req, res) =
     }
 
     console.log('Running deterministic analysis...');
+    console.log('First 500 chars of extracted text:', content.substring(0, 500).replace(/\n/g, '|'));
     const det = runDeterministicAnalysis(content, ext);
 
     console.log('Running Groq narrative analysis...');
