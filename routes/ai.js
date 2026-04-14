@@ -267,7 +267,8 @@ Rules:
   const response = await groq.chat.completions.create({
     model: 'meta-llama/llama-4-scout-17b-16e-instruct',
     messages: [{ role: 'user', content: prompt }],
-    temperature: 0.3,
+    temperature: 0,
+    seed: 42,
     max_tokens: 1000
   });
 
