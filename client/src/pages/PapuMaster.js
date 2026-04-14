@@ -360,7 +360,8 @@ const PapuMaster = () => {
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-5xl mx-auto">
       {/* Header */}
       <div className="text-center mb-8">
-        <h1 className="text-4xl font-bold cinema-header mb-2">🧠 Papu Master AI</h1>
+        <Brain className="mx-auto mb-3 text-red-400" size={44} />
+        <h1 className="text-4xl font-bold cinema-header mb-2">Papu Master AI</h1>
         <p className="text-white/70">Advanced Script Analysis — Powered by Llama 4 Scout</p>
       </div>
 
@@ -368,7 +369,6 @@ const PapuMaster = () => {
       {!result && (
         <div className="card">
           <div className="text-center mb-6">
-            <Brain className="mx-auto mb-3 text-red-400" size={44} />
             <h2 className="text-2xl font-bold cinema-header mb-1">Upload Your Script</h2>
             <p className="text-white/60 text-sm">Supports .txt, .pdf, .doc, .docx — max 10MB — 90 to 120 page feature scripts</p>
             <p className="text-yellow-400/70 text-xs mt-1">⚠ For most accurate results, upload as .docx — PDF formatting may affect deterministic scores</p>
@@ -393,7 +393,6 @@ const PapuMaster = () => {
           {error && <div className="mb-4 px-4 py-3 rounded-lg border border-red-400/50 text-red-300 text-sm">{error}</div>}
           <div className="text-center">
             <button onClick={handleAnalyze} disabled={!selectedFile || loading} className="btn-primary flex items-center gap-2 mx-auto px-8 py-3 text-lg">
-              <Brain size={20} />
               {loading ? 'Analyzing...' : 'Analyze with Papu Master'}
             </button>
           </div>
