@@ -123,12 +123,16 @@ function runDeterministicAnalysis(content, fileExt) {
     if (fileExt === '.txt') {
       isCharName = /^\s{10,30}[A-Z][A-Z\s]+$/.test(line);
     } else {
-      isCharName = Object.prototype.hasOwnProperty.call(characterMap, trimmed);
+      isCharName = Object.prototype.hasOwnProperty.call(characterMap, trimmed) && characterMap[trimmed] > 2;
     }
     const isSlug = /^(INT\.|EXT\.)/.test(trimmed);
     if (isCharName) { readingDialogue = true; charNameHits++; return; }
     if (readingDialogue) {
-      if (trimmed === '' || isSlug || (fileExt !== '.txt' && Object.prototype.hasOwnProperty.call(characterMap, trimmed))) {
+      // Only reset on empty line, slugline, or a RECURRING character name (count > 2)
+      const isRecurringChar = fileExt !== '.txt' &&
+        Object.prototype.hasOwnProperty.call(characterMap, trimmed) &&
+        characterMap[trimmed] > 2;
+      if (trimmed === '' || isSlug || isRecurringChar) {
         readingDialogue = false;
       } else {
         dialogueWords += trimmed.split(/\s+/).filter(w => w.length > 0).length;
