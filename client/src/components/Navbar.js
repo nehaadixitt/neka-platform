@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Film, User, FolderOpen, MessageCircle, Users, LogOut, Brain } from 'lucide-react';
+import { Film, User, FolderOpen, MessageCircle, Users, LogOut, Brain, Clapperboard } from 'lucide-react';
 import NotificationBell from './NotificationBell';
 
 const Navbar = ({ user, logout }) => {
@@ -38,10 +38,19 @@ const Navbar = ({ user, logout }) => {
           <Link to="/">
             <motion.div
               whileHover={{ scale: 1.05 }}
-              className="flex items-center space-x-2"
+              className="flex flex-col items-center"
             >
-              <Film className="text-red-500" size={28} />
-              <span className="text-2xl font-bold bg-gradient-to-r from-black via-red-600 to-red-400 bg-clip-text text-transparent">
+              {/* Camera + cinema icon stack */}
+              <div className="relative flex items-center justify-center">
+                <div className="relative">
+                  {/* Film strip behind */}
+                  <Film className="absolute -left-2 -bottom-1 text-red-800 opacity-60" size={18} />
+                  {/* Main clapperboard */}
+                  <Clapperboard size={32} className="text-red-500 drop-shadow-lg" />
+                </div>
+              </div>
+              <span className="text-xs font-black tracking-[0.3em] mt-0.5"
+                style={{ background: 'linear-gradient(90deg, #fff 0%, #ef4444 60%, #991b1b 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
                 NEKA
               </span>
             </motion.div>
