@@ -3,6 +3,59 @@ import { motion } from 'framer-motion';
 import { Film, Users, Star, ArrowRight } from 'lucide-react';
 import axios from '../utils/auth';
 
+// Publicly available movie poster/still URLs (Wikipedia commons & press)
+const FILM_STILLS = [
+  'https://upload.wikimedia.org/wikipedia/en/8/8a/Inception_ver3.jpg',
+  'https://upload.wikimedia.org/wikipedia/en/0/0d/Blade_runner_2049_poster.png',
+  'https://upload.wikimedia.org/wikipedia/en/1/1e/Joker_%282019_film%29_poster.jpg',
+  'https://upload.wikimedia.org/wikipedia/en/a/a7/Camponotus_flavomarginatus_ant.jpg',
+  'https://upload.wikimedia.org/wikipedia/en/4/4d/Shawshank_redemption.jpg',
+  'https://upload.wikimedia.org/wikipedia/en/3/3b/Dark_Knight_Rises_Poster.jpg',
+  'https://upload.wikimedia.org/wikipedia/en/f/fb/Interstellar_film_poster.jpg',
+  'https://upload.wikimedia.org/wikipedia/en/8/81/SherlockHolmesSherlockHolmes.jpg',
+  'https://upload.wikimedia.org/wikipedia/en/b/b9/3_Idiots_poster.jpg',
+  'https://upload.wikimedia.org/wikipedia/en/1/1c/Lagaan_poster.jpg',
+  'https://upload.wikimedia.org/wikipedia/en/d/d3/Dangal_poster.jpg',
+  'https://upload.wikimedia.org/wikipedia/en/9/99/Dilwale_Dulhania_Le_Jayenge_poster.jpg',
+  'https://upload.wikimedia.org/wikipedia/en/0/09/Mughal-e-azam.jpg',
+  'https://upload.wikimedia.org/wikipedia/en/5/5e/Sholay_poster.jpg',
+  'https://upload.wikimedia.org/wikipedia/en/6/6e/Gully_Boy_poster.jpg',
+];
+
+const FilmStrip = () => {
+  // Duplicate for seamless loop
+  const stills = [...FILM_STILLS, ...FILM_STILLS];
+  return (
+    <div className="fixed bottom-0 left-0 right-0 z-0 overflow-hidden pointer-events-none" style={{ height: 90, opacity: 0.18 }}>
+      {/* Film strip top border */}
+      <div style={{ height: 10, background: '#111', borderTop: '2px solid #333', display: 'flex', alignItems: 'center' }}>
+        {Array.from({ length: 40 }).map((_, i) => (
+          <div key={i} style={{ width: 16, height: 6, background: '#222', border: '1px solid #444', borderRadius: 1, marginLeft: 8, flexShrink: 0 }} />
+        ))}
+      </div>
+      {/* Scrolling frames */}
+      <motion.div
+        style={{ display: 'flex', height: 70, background: '#000' }}
+        animate={{ x: ['0%', '-50%'] }}
+        transition={{ duration: 40, repeat: Infinity, ease: 'linear' }}
+      >
+        {stills.map((src, i) => (
+          <div key={i} style={{ width: 100, height: 70, flexShrink: 0, borderRight: '3px solid #222', overflow: 'hidden' }}>
+            <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              onError={e => { e.target.style.display = 'none'; }} />
+          </div>
+        ))}
+      </motion.div>
+      {/* Film strip bottom border */}
+      <div style={{ height: 10, background: '#111', borderBottom: '2px solid #333', display: 'flex', alignItems: 'center' }}>
+        {Array.from({ length: 40 }).map((_, i) => (
+          <div key={i} style={{ width: 16, height: 6, background: '#222', border: '1px solid #444', borderRadius: 1, marginLeft: 8, flexShrink: 0 }} />
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const Home = () => {
   const [projects, setProjects] = useState([]);
 
@@ -18,7 +71,9 @@ const Home = () => {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.6 }}
       className="max-w-6xl mx-auto"
+      style={{ paddingBottom: 100 }}
     >
+      <FilmStrip />
       {/* Hero Section */}
       <motion.div 
         initial={{ y: 50, opacity: 0 }}
