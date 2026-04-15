@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Mail, Lock, LogIn, Film } from 'lucide-react';
 import axios, { setAuthToken } from '../utils/auth';
+import FilmStrip from '../components/FilmStrip';
 
 const Login = ({ setUser }) => {
   const [formData, setFormData] = useState({ email: '', password: '' });
@@ -30,7 +31,10 @@ const Login = ({ setUser }) => {
   };
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center">
+    <div className="min-h-[80vh] flex flex-col items-center justify-center">
+      <div className="w-full mb-8">
+        <FilmStrip />
+      </div>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}

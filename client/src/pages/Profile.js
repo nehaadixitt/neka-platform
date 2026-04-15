@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Edit3, Save, X, User, Mail, Briefcase, MessageSquare, Users, FolderOpen } from 'lucide-react';
 import axios from '../utils/auth';
+import FilmStrip from '../components/FilmStrip';
 
 const Profile = ({ user, setUser }) => {
   const [editing, setEditing] = useState(false);
@@ -77,6 +78,9 @@ const Profile = ({ user, setUser }) => {
       transition={{ duration: 0.6 }}
       className="max-w-4xl mx-auto"
     >
+      <div className="mb-8">
+        <FilmStrip />
+      </div>
       {/* Profile Header */}
       <div className="card mb-8">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-6">
